@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(python3 -c ' *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ِAyyoubKA\\\\salon\\\\smart_salon_v2\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)",
+      "Read(//c/Users/**)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ِAyyoubKA\\\\salon\\\\smart_salon_v2\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
+    ]
+  }
+}
