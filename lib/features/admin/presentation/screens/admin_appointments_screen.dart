@@ -78,9 +78,6 @@ class _AdminAppointmentsScreenState
       ),
     );
 
-    if (mounted) {
-      ref.invalidate(salonAppointmentsByDateProvider(_normalizedDate));
-    }
   }
 
   @override
@@ -175,10 +172,6 @@ class _AdminAppointmentsScreenState
                             return _AdminAppointmentTile(
                               appointment: filtered[index],
                               barbers: barbers,
-                              onChanged: () => ref.invalidate(
-                                salonAppointmentsByDateProvider(
-                                    _normalizedDate),
-                              ),
                             );
                           },
                         ),
@@ -385,12 +378,10 @@ class _SummaryCell extends StatelessWidget {
 class _AdminAppointmentTile extends ConsumerStatefulWidget {
   final AppointmentModel appointment;
   final List<UserModel> barbers;
-  final VoidCallback onChanged;
 
   const _AdminAppointmentTile({
     required this.appointment,
     required this.barbers,
-    required this.onChanged,
   });
 
   @override
@@ -426,7 +417,6 @@ class _AdminAppointmentTileState
     await ref
         .read(appointmentRepositoryProvider)
         .markNoShow(widget.appointment.id);
-    widget.onChanged();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -435,7 +425,6 @@ class _AdminAppointmentTileState
     await ref
         .read(appointmentRepositoryProvider)
         .cancelAppointment(widget.appointment.id);
-    widget.onChanged();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -532,7 +521,6 @@ class _AdminAppointmentTileState
           newBarberName: selected.fullName,
         );
 
-    widget.onChanged();
     if (mounted) setState(() => _loading = false);
   }
 

@@ -8,13 +8,16 @@ final appointmentRepositoryProvider = Provider<AppointmentRepository>(
 );
 
 final todayBarberAppointmentsProvider =
-    FutureProvider<List<AppointmentModel>>((ref) async {
+    StreamProvider<List<AppointmentModel>>((ref) async* {
   final user = await ref.watch(currentUserProvider.future);
-  if (user == null) return [];
+  if (user == null) {
+    yield [];
+    return;
+  }
 
-  return ref
+  yield* ref
       .read(appointmentRepositoryProvider)
-      .getAppointmentsForBarberOnDate(
+      .watchAppointmentsForBarberOnDate(
         barberUid: user.uid,
         date: DateTime.now(),
       );
@@ -38,14 +41,17 @@ final appointmentsByDateProvider =
 
 /// Admin use. Parameter must be normalised to midnight: DateTime(year, month, day).
 final salonAppointmentsByDateProvider =
-    FutureProvider.family<List<AppointmentModel>, DateTime>(
-  (ref, date) async {
+    StreamProvider.family<List<AppointmentModel>, DateTime>(
+  (ref, date) async* {
     final user = await ref.watch(currentUserProvider.future);
-    if (user == null) return [];
+    if (user == null) {
+      yield [];
+      return;
+    }
 
-    return ref
+    yield* ref
         .read(appointmentRepositoryProvider)
-        .getAppointmentsForSalonOnDate(
+        .watchAppointmentsForSalonOnDate(
           salonId: user.salonId,
           date: date,
         );

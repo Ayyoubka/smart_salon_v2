@@ -67,7 +67,6 @@ class BarberAppointmentsScreen extends ConsumerWidget {
               builder: (_) => const CreateAppointmentScreen(),
             ),
           );
-          ref.invalidate(todayBarberAppointmentsProvider);
         },
       ),
     );
@@ -190,7 +189,6 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
           visitId: visit.id,
         );
 
-    ref.invalidate(todayBarberAppointmentsProvider);
     ref.invalidate(visitsProvider);
 
     if (mounted) setState(() => _loading = false);
@@ -203,8 +201,6 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
         .read(appointmentRepositoryProvider)
         .markNoShow(widget.appointment.id);
 
-    ref.invalidate(todayBarberAppointmentsProvider);
-
     if (mounted) setState(() => _loading = false);
   }
 
@@ -214,8 +210,6 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
     await ref
         .read(appointmentRepositoryProvider)
         .cancelAppointment(widget.appointment.id);
-
-    ref.invalidate(todayBarberAppointmentsProvider);
 
     if (mounted) setState(() => _loading = false);
   }

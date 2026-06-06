@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/barber_shift_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../user/presentation/providers/current_user_provider.dart';
 
 class BarberTopBar extends ConsumerWidget implements PreferredSizeWidget {
   const BarberTopBar({super.key});
@@ -12,9 +13,11 @@ class BarberTopBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shift = ref.watch(barberShiftProvider);
+    final userName =
+        ref.watch(currentUserProvider).value?.fullName ?? 'Barber';
 
     return AppBar(
-      title: const Text('Barber Name'),
+      title: Text(userName),
       actions: [
         _ShiftChip(shift: shift),
         const SizedBox(width: 8),

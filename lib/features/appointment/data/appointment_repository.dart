@@ -136,4 +136,44 @@ class AppointmentRepository {
       'barberName': newBarberName,
     });
   }
+
+  Stream<List<AppointmentModel>> watchAppointmentsForBarberOnDate({
+    required String barberUid,
+    required DateTime date,
+  }) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    return _db
+        .collection(FirestoreConstants.appointments)
+        .where('barberUid', isEqualTo: barberUid)
+        .where('scheduledAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+        .where('scheduledAt', isLessThan: Timestamp.fromDate(dayEnd))
+        .orderBy('scheduledAt')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => AppointmentModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
+  Stream<List<AppointmentModel>> watchAppointmentsForSalonOnDate({
+    required String salonId,
+    required DateTime date,
+  }) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    return _db
+        .collection(FirestoreConstants.appointments)
+        .where('salonId', isEqualTo: salonId)
+        .where('scheduledAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+        .where('scheduledAt', isLessThan: Timestamp.fromDate(dayEnd))
+        .orderBy('scheduledAt')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => AppointmentModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
 }
