@@ -28,7 +28,6 @@ class ClientRepository {
     required String prefix,
     int limit = 10,
   }) async {
-    print('[searchByPhonePrefix] salonId=$salonId prefix="$prefix"');
     final snap = await _db
         .collection(FirestoreConstants.clients)
         .where('salonId', isEqualTo: salonId)
@@ -38,14 +37,10 @@ class ClientRepository {
         .limit(limit)
         .get();
 
-    print('[searchByPhonePrefix] raw docs returned: ${snap.docs.length}');
     final results = snap.docs
         .map((doc) => ClientModel.fromMap(doc.id, doc.data()))
         .where((c) => c.isActive)
         .toList();
-    for (final c in results) {
-      print('[searchByPhonePrefix] → phone=${c.phone} fullName=${c.fullName}');
-    }
     return results;
   }
 
