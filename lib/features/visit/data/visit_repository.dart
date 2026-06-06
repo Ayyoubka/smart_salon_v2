@@ -56,4 +56,20 @@ class VisitRepository {
         .map((doc) => VisitModel.fromMap(doc.id, doc.data()))
         .toList();
   }
+
+  Future<List<VisitModel>> getVisitsByClient({
+    required String salonId,
+    required String clientId,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.visits)
+        .where('salonId', isEqualTo: salonId)
+        .where('clientId', isEqualTo: clientId)
+        .orderBy('startedAt', descending: true)
+        .get();
+
+    return snap.docs
+        .map((doc) => VisitModel.fromMap(doc.id, doc.data()))
+        .toList();
+  }
 }

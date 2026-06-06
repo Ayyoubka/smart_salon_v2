@@ -80,6 +80,22 @@ class AppointmentRepository {
         .toList();
   }
 
+  Future<List<AppointmentModel>> getAppointmentsByClient({
+    required String salonId,
+    required String clientId,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.appointments)
+        .where('salonId', isEqualTo: salonId)
+        .where('clientId', isEqualTo: clientId)
+        .orderBy('scheduledAt', descending: true)
+        .get();
+
+    return snap.docs
+        .map((doc) => AppointmentModel.fromMap(doc.id, doc.data()))
+        .toList();
+  }
+
   Future<void> markArrived({
     required String appointmentId,
     required String visitId,
@@ -105,5 +121,19 @@ class AppointmentRepository {
         .collection(FirestoreConstants.appointments)
         .doc(appointmentId)
         .update({'status': AppointmentStatus.cancelled.name});
+  }
+
+  Future<void> reassignAppointment({
+    required String appointmentId,
+    required String newBarberUid,
+    required String newBarberName,
+  }) async {
+    await _db
+        .collection(FirestoreConstants.appointments)
+        .doc(appointmentId)
+        .update({
+      'barberUid': newBarberUid,
+      'barberName': newBarberName,
+    });
   }
 }

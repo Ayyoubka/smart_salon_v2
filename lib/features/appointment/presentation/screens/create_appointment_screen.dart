@@ -11,7 +11,14 @@ import '../providers/available_slots_provider.dart';
 import '../widgets/time_slot_grid.dart';
 
 class CreateAppointmentScreen extends ConsumerStatefulWidget {
-  const CreateAppointmentScreen({super.key});
+  final String? targetBarberUid;
+  final String? targetBarberName;
+
+  const CreateAppointmentScreen({
+    super.key,
+    this.targetBarberUid,
+    this.targetBarberName,
+  });
 
   @override
   ConsumerState<CreateAppointmentScreen> createState() =>
@@ -110,10 +117,13 @@ class _CreateAppointmentScreenState
       clientPhone = '';
     }
 
+    final effectiveBarberUid = widget.targetBarberUid ?? user.uid;
+    final effectiveBarberName = widget.targetBarberName ?? user.fullName;
+
     await ref.read(appointmentRepositoryProvider).createAppointment(
           salonId: user.salonId,
-          barberUid: user.uid,
-          barberName: user.fullName,
+          barberUid: effectiveBarberUid,
+          barberName: effectiveBarberName,
           clientId: clientId,
           clientName: clientName,
           clientPhone: clientPhone,
@@ -123,7 +133,7 @@ class _CreateAppointmentScreenState
         );
 
     ref.invalidate(availableSlotsProvider((
-      barberUid: user.uid,
+      barberUid: effectiveBarberUid,
       date: _selectedDate!,
     )));
 
@@ -189,7 +199,7 @@ class _CreateAppointmentScreenState
                 const SizedBox(height: 8),
                 ref
                     .watch(availableSlotsProvider((
-                      barberUid: user.uid,
+                      barberUid: widget.targetBarberUid ?? user.uid,
                       date: _selectedDate!,
                     )))
                     .when(

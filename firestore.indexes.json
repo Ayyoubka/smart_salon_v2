@@ -18,6 +18,15 @@
       ]
     },
     {
+      "collectionGroup": "visits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "salonId",   "order": "ASCENDING"  },
+        { "fieldPath": "clientId",  "order": "ASCENDING"  },
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "clients",
       "queryScope": "COLLECTION",
       "fields": [
@@ -49,7 +58,26 @@
         { "fieldPath": "salonId",     "order": "ASCENDING" },
         { "fieldPath": "scheduledAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "salonId",     "order": "ASCENDING"  },
+        { "fieldPath": "clientId",    "order": "ASCENDING"  },
+        { "fieldPath": "scheduledAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "salonId",   "order": "ASCENDING" },
+        { "fieldPath": "role",      "order": "ASCENDING" },
+        { "fieldPath": "fullName",  "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
 }
+

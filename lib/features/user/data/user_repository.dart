@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/firestore_constants.dart';
+import '../../../shared/enums/user_role.dart';
 import '../../../shared/models/user_model.dart';
 
 class UserRepository {
@@ -19,5 +20,21 @@ class UserRepository {
         .collection(FirestoreConstants.users)
         .doc(user.uid)
         .set(user.toMap(), SetOptions(merge: true));
+  }
+
+  Future<List<UserModel>> getBarbersBySalon({
+    required String salonId,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.users)
+        .where('salonId', isEqualTo: salonId)
+        .where('role', isEqualTo: UserRole.barber.name)
+        .orderBy('fullName')
+        .get();
+
+    return snap.docs
+        .map((doc) => UserModel.fromMap(doc.data()))
+        .where((u) => u.isActive)
+        .toList();
   }
 }

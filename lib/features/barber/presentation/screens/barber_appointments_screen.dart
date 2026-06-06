@@ -5,6 +5,7 @@ import '../../../../features/appointment/presentation/screens/create_appointment
 import '../../../../features/shift/presentation/providers/current_shift_provider.dart';
 import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../../../../shared/models/appointment_model.dart';
+import '../../../client/presentation/screens/client_history_screen.dart';
 
 class BarberAppointmentsScreen extends ConsumerWidget {
   const BarberAppointmentsScreen({super.key});
@@ -226,6 +227,18 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
 
     return Card(
       child: ListTile(
+        onTap: appt.clientId.isNotEmpty
+            ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ClientHistoryScreen(
+                      clientId: appt.clientId,
+                      clientName: appt.clientName,
+                      phone: appt.clientPhone,
+                      salonId: appt.salonId,
+                    ),
+                  ),
+                )
+            : null,
         leading: Text(
           _formatTime(appt.scheduledAt),
           style: theme.textTheme.titleMedium,
