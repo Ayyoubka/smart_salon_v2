@@ -105,7 +105,6 @@ class _AdminAppointmentsScreenState
         children: [
           // ── Filter Bar ────────────────────────────────────────────
           _FilterBar(
-            selectedDate: _selectedDate,
             formattedDate: _formatDate(_selectedDate),
             barbers: barbers,
             selectedBarberUid: _selectedBarberUid,
@@ -205,7 +204,6 @@ class _AdminAppointmentsScreenState
 // ── Filter Bar ────────────────────────────────────────────────────────────────
 
 class _FilterBar extends StatelessWidget {
-  final DateTime selectedDate;
   final String formattedDate;
   final List<UserModel> barbers;
   final String? selectedBarberUid;
@@ -215,7 +213,6 @@ class _FilterBar extends StatelessWidget {
   final ValueChanged<AppointmentStatus?> onStatusChanged;
 
   const _FilterBar({
-    required this.selectedDate,
     required this.formattedDate,
     required this.barbers,
     required this.selectedBarberUid,
@@ -486,10 +483,7 @@ class _AdminAppointmentTileState
           date: appt.scheduledAt,
         );
 
-    if (!mounted) {
-      setState(() => _loading = false);
-      return;
-    }
+    if (!mounted) return;
 
     final apptEnd =
         appt.scheduledAt.add(Duration(minutes: appt.durationMinutes));
