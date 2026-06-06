@@ -6,8 +6,8 @@ import '../widgets/barber_bottom_nav.dart';
 import 'barber_waiting_screen.dart';
 import 'barber_in_service_screen.dart';
 import 'barber_completed_screen.dart';
+import 'barber_more_screen.dart';
 import 'barber_appointments_screen.dart';
-import 'barber_reports_screen.dart';
 
 class BarberHomeScreen extends ConsumerWidget {
   const BarberHomeScreen({super.key});
@@ -16,7 +16,7 @@ class BarberHomeScreen extends ConsumerWidget {
     BarberWaitingScreen(),
     BarberInServiceScreen(),
     BarberCompletedScreen(),
-    BarberReportsScreen(),
+    BarberMoreScreen(),
     BarberAppointmentsScreen(),
   ];
 

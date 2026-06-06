@@ -17,6 +17,7 @@ class PaymentDialog extends StatefulWidget {
 }
 
 class _PaymentDialogState extends State<PaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
 
   @override
@@ -25,8 +26,18 @@ class _PaymentDialogState extends State<PaymentDialog> {
     super.dispose();
   }
 
+  String? _validate(String? v) {
+    final trimmed = v?.trim() ?? '';
+    if (trimmed.isEmpty) return 'Amount is required';
+    final parsed = double.tryParse(trimmed);
+    if (parsed == null) return 'Enter a valid amount';
+    if (parsed <= 0) return 'Amount must be greater than 0';
+    return null;
+  }
+
   void _confirm() {
-    final amount = double.tryParse(_controller.text.trim()) ?? 0;
+    if (!_formKey.currentState!.validate()) return;
+    final amount = double.parse(_controller.text.trim());
     Navigator.of(context).pop(amount);
   }
 
@@ -34,15 +45,19 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.clientName),
-      content: TextField(
-        controller: _controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Amount Paid',
-          prefixText: '₪ ',
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Amount Paid',
+            prefixText: '₪ ',
+          ),
+          validator: _validate,
+          onFieldSubmitted: (_) => _confirm(),
         ),
-        onSubmitted: (_) => _confirm(),
       ),
       actions: [
         TextButton(

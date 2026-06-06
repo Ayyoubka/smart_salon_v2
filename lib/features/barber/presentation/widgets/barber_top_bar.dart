@@ -64,7 +64,38 @@ class _ShiftButton extends StatelessWidget {
         ),
       ShiftStatus.active => FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Colors.red),
-          onPressed: () => ref.read(barberShiftProvider.notifier).endShift(),
+          onPressed: () async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('End Shift'),
+                content: const Text(
+                  'Are you sure you want to end the shift?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('End Shift'),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirmed != true) return;
+            if (!context.mounted) return;
+
+            final error =
+                await ref.read(barberShiftProvider.notifier).endShift();
+            if (error != null && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(error)),
+              );
+            }
+          },
           child: const Text('End Shift'),
         ),
       ShiftStatus.ended => const SizedBox.shrink(),

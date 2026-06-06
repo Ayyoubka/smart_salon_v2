@@ -122,6 +122,11 @@ class _CreateAppointmentScreenState
           createdByUid: user.uid,
         );
 
+    ref.invalidate(availableSlotsProvider((
+      barberUid: user.uid,
+      date: _selectedDate!,
+    )));
+
     if (mounted) Navigator.of(context).pop();
   }
 

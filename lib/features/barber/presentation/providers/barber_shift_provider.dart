@@ -40,17 +40,31 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     }
   }
 
-  Future<void> endShift() async {
-    if (state != ShiftStatus.active) return;
+  /// Returns null on success, or an error message if the shift cannot end.
+  Future<String?> endShift() async {
+    if (state != ShiftStatus.active) return null;
+
+    final visits = await ref.read(visitsProvider.future);
+
+    if (visits.any((v) => v.status == VisitStatus.inService)) {
+      return 'Finish the current client first';
+    }
+
+    if (visits.any((v) => v.status == VisitStatus.waiting)) {
+      return 'There are waiting clients';
+    }
+
     state = ShiftStatus.ended;
 
     final shift = ref.read(currentShiftProvider).asData?.value;
-    if (shift == null) return;
+    if (shift == null) return null;
 
     await _createDeposit(shift);
     await ref.read(shiftRepositoryProvider).endShift(shift.id);
     ref.invalidate(currentShiftProvider);
     ref.invalidate(depositsProvider);
+
+    return null;
   }
 
   Future<void> _createDeposit(ShiftModel shift) async {
