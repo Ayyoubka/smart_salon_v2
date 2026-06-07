@@ -13,3 +13,16 @@ final visitsProvider = FutureProvider<List<VisitModel>>((ref) async {
 
   return ref.read(visitRepositoryProvider).getVisitsByShift(shift.id);
 });
+
+typedef BarberPeriodArg = ({String barberUid, DateTime start, DateTime end});
+
+final barberPeriodVisitsProvider =
+    FutureProvider.family<List<VisitModel>, BarberPeriodArg>(
+  (ref, arg) => ref
+      .read(visitRepositoryProvider)
+      .getCompletedVisitsByBarberInPeriod(
+        barberUid: arg.barberUid,
+        start: arg.start,
+        end: arg.end,
+      ),
+);

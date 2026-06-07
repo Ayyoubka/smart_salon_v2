@@ -57,6 +57,24 @@ class VisitRepository {
         .toList();
   }
 
+  Future<List<VisitModel>> getCompletedVisitsByBarberInPeriod({
+    required String barberUid,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.visits)
+        .where('barberUid', isEqualTo: barberUid)
+        .where('completedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('completedAt', isLessThan: Timestamp.fromDate(end))
+        .get();
+
+    return snap.docs
+        .map((doc) => VisitModel.fromMap(doc.id, doc.data()))
+        .toList();
+  }
+
   Future<List<VisitModel>> getVisitsByClient({
     required String salonId,
     required String clientId,
