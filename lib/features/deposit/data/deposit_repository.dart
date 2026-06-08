@@ -12,6 +12,7 @@ class DepositRepository {
     required String shiftId,
     required DateTime businessDate,
     required double expectedAmount,
+    required double depositedAmount,
     required int clientsCount,
   }) async {
     final ref = _db.collection(FirestoreConstants.deposits).doc();
@@ -23,7 +24,7 @@ class DepositRepository {
       shiftId: shiftId,
       businessDate: businessDate,
       expectedAmount: expectedAmount,
-      depositedAmount: 0,
+      depositedAmount: depositedAmount,
       takenAmount: 0,
       clientsCount: clientsCount,
       createdAt: DateTime.now(),

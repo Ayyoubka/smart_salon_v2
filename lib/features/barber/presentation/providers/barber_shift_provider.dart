@@ -41,7 +41,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
   }
 
   /// Returns null on success, or an error message if the shift cannot end.
-  Future<String?> endShift() async {
+  Future<String?> endShift(double depositedAmount) async {
     if (state != ShiftStatus.active) return null;
 
     final visits = await ref.read(visitsProvider.future);
@@ -59,7 +59,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     final shift = ref.read(currentShiftProvider).asData?.value;
     if (shift == null) return null;
 
-    await _createDeposit(shift);
+    await _createDeposit(shift, depositedAmount);
     await ref.read(shiftRepositoryProvider).endShift(shift.id);
     ref.invalidate(currentShiftProvider);
     ref.invalidate(depositsProvider);
@@ -67,9 +67,10 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     return null;
   }
 
-  Future<void> _createDeposit(ShiftModel shift) async {
+  Future<void> _createDeposit(ShiftModel shift, double depositedAmount) async {
     final visits = await ref.read(visitRepositoryProvider).getVisitsByShift(shift.id);
     final completed = visits.where((v) => v.status == VisitStatus.completed).toList();
+    if (completed.isEmpty) return;
     final expectedAmount = completed.fold(0.0, (sum, v) => sum + v.amountPaid);
 
     await ref.read(depositRepositoryProvider).createDeposit(
@@ -79,6 +80,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
           shiftId: shift.id,
           businessDate: shift.shiftBusinessDate,
           expectedAmount: expectedAmount,
+          depositedAmount: depositedAmount,
           clientsCount: completed.length,
         );
   }

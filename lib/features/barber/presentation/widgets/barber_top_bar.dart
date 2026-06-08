@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/barber_shift_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
+import '../../../../shared/models/visit_model.dart';
+import '../../../visit/presentation/providers/visits_provider.dart';
 
 class BarberTopBar extends ConsumerWidget implements PreferredSizeWidget {
   const BarberTopBar({super.key});
@@ -91,8 +93,26 @@ class _ShiftButton extends StatelessWidget {
             if (confirmed != true) return;
             if (!context.mounted) return;
 
-            final error =
-                await ref.read(barberShiftProvider.notifier).endShift();
+            final visits = await ref.read(visitsProvider.future);
+            final hasCompleted =
+                visits.any((v) => v.status == VisitStatus.completed);
+
+            double depositedAmount = 0;
+            if (hasCompleted) {
+              if (!context.mounted) return;
+              final amount = await showDialog<double>(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => const _CashDepositDialog(),
+              );
+              if (amount == null) return;
+              depositedAmount = amount;
+            }
+
+            if (!context.mounted) return;
+            final error = await ref
+                .read(barberShiftProvider.notifier)
+                .endShift(depositedAmount);
             if (error != null && context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(error)),
@@ -103,5 +123,56 @@ class _ShiftButton extends StatelessWidget {
         ),
       ShiftStatus.ended => const SizedBox.shrink(),
     };
+  }
+}
+
+class _CashDepositDialog extends StatefulWidget {
+  const _CashDepositDialog();
+
+  @override
+  State<_CashDepositDialog> createState() => _CashDepositDialogState();
+}
+
+class _CashDepositDialogState extends State<_CashDepositDialog> {
+  final _controller = TextEditingController();
+  bool _valid = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    final parsed = double.tryParse(value);
+    setState(() => _valid = parsed != null && parsed >= 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cash Deposit'),
+      content: TextField(
+        controller: _controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'How much cash are you depositing?',
+        ),
+        autofocus: true,
+        onChanged: _onChanged,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _valid
+              ? () => Navigator.of(context).pop(double.parse(_controller.text))
+              : null,
+          child: const Text('Confirm'),
+        ),
+      ],
+    );
   }
 }
