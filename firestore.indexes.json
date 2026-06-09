@@ -10,6 +10,14 @@
       ]
     },
     {
+      "collectionGroup": "deposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "salonId",      "order": "ASCENDING"  },
+        { "fieldPath": "businessDate", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "visits",
       "queryScope": "COLLECTION",
       "fields": [

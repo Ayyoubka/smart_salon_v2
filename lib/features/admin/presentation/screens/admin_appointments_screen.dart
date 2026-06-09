@@ -7,6 +7,7 @@ import '../../../appointment/presentation/screens/create_appointment_screen.dart
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
 import '../providers/admin_providers.dart';
+import 'admin_deposits_screen.dart';
 
 class AdminAppointmentsScreen extends ConsumerStatefulWidget {
   const AdminAppointmentsScreen({super.key});
@@ -91,6 +92,15 @@ class _AdminAppointmentsScreenState
       appBar: AppBar(
         title: const Text('Appointments'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt),
+            tooltip: 'Deposits',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AdminDepositsScreen(),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',

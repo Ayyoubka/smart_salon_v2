@@ -48,4 +48,18 @@ class DepositRepository {
         .map((doc) => DepositModel.fromMap(doc.id, doc.data()))
         .toList();
   }
+
+  Future<List<DepositModel>> getDepositsBySalon({
+    required String salonId,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.deposits)
+        .where('salonId', isEqualTo: salonId)
+        .orderBy('businessDate', descending: true)
+        .get();
+
+    return snap.docs
+        .map((doc) => DepositModel.fromMap(doc.id, doc.data()))
+        .toList();
+  }
 }
