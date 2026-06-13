@@ -4,6 +4,7 @@ import '../../../../shared/models/appointment_model.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../appointment/presentation/providers/appointments_provider.dart';
 import '../../../appointment/presentation/screens/create_appointment_screen.dart';
+import '../../../appointment/presentation/screens/reschedule_appointment_screen.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
 import '../providers/admin_providers.dart';
@@ -478,6 +479,16 @@ class _AdminAppointmentTileState
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _reschedule() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RescheduleAppointmentScreen(
+          appointment: widget.appointment,
+        ),
+      ),
+    );
+  }
+
   Future<void> _reassign() async {
     final appt = widget.appointment;
     final availableBarbers =
@@ -610,6 +621,7 @@ class _AdminAppointmentTileState
                     onSelected: (value) {
                       if (value == 'noShow') _markNoShow();
                       if (value == 'cancel') _cancelAppointment();
+                      if (value == 'reschedule') _reschedule();
                       if (value == 'reassign') _reassign();
                     },
                     itemBuilder: (_) => const [
@@ -620,6 +632,10 @@ class _AdminAppointmentTileState
                       PopupMenuItem(
                         value: 'cancel',
                         child: Text('Cancel'),
+                      ),
+                      PopupMenuItem(
+                        value: 'reschedule',
+                        child: Text('Reschedule'),
                       ),
                       PopupMenuItem(
                         value: 'reassign',

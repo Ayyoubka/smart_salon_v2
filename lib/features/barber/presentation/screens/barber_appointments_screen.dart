@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../features/appointment/presentation/providers/appointments_provider.dart';
 import '../../../../features/appointment/presentation/providers/available_slots_provider.dart';
 import '../../../../features/appointment/presentation/screens/create_appointment_screen.dart';
+import '../../../../features/appointment/presentation/screens/reschedule_appointment_screen.dart';
 import '../../../../features/shift/presentation/providers/current_shift_provider.dart';
 import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../../../../shared/models/appointment_model.dart';
@@ -373,6 +374,16 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _reschedule() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RescheduleAppointmentScreen(
+          appointment: widget.appointment,
+        ),
+      ),
+    );
+  }
+
   Future<void> _cancelAppointment() async {
     setState(() => _loading = true);
     final appt = widget.appointment;
@@ -436,12 +447,16 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
                             onSelected: (value) {
                               if (value == 'noShow') _markNoShow();
                               if (value == 'cancel') _cancelAppointment();
+                              if (value == 'reschedule') _reschedule();
                             },
                             itemBuilder: (_) => const [
                               PopupMenuItem(
                                   value: 'noShow', child: Text('No Show')),
                               PopupMenuItem(
                                   value: 'cancel', child: Text('Cancel')),
+                              PopupMenuItem(
+                                  value: 'reschedule',
+                                  child: Text('Reschedule')),
                             ],
                           ),
                         ],
@@ -449,10 +464,14 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
                     : PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == 'cancel') _cancelAppointment();
+                          if (value == 'reschedule') _reschedule();
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(
                               value: 'cancel', child: Text('Cancel')),
+                          PopupMenuItem(
+                              value: 'reschedule',
+                              child: Text('Reschedule')),
                         ],
                       )
             : Text(
