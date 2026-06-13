@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'barber_clients_screen.dart';
 import 'barber_deposits_screen.dart';
 import 'barber_reports_screen.dart';
 
@@ -27,10 +28,25 @@ class BarberMoreScreen extends StatelessWidget {
     );
   }
 
+  void _openClients(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const BarberClientsScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
+        ListTile(
+          leading: const Icon(Icons.people_outline),
+          title: const Text('Clients'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openClients(context),
+        ),
+        const Divider(height: 1),
         ListTile(
           leading: const Icon(Icons.bar_chart_outlined),
           title: const Text('Reports'),
