@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/models/appointment_model.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../appointment/presentation/providers/appointments_provider.dart';
+import '../../../appointment/presentation/providers/available_slots_provider.dart';
 import '../../../appointment/presentation/screens/create_appointment_screen.dart';
 import '../../../appointment/presentation/screens/reschedule_appointment_screen.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -473,9 +474,19 @@ class _AdminAppointmentTileState
 
   Future<void> _cancelAppointment() async {
     setState(() => _loading = true);
+    final appt = widget.appointment;
     await ref
         .read(appointmentRepositoryProvider)
-        .cancelAppointment(widget.appointment.id);
+        .cancelAppointment(appt.id);
+    final apptDate = DateTime(
+      appt.scheduledAt.year,
+      appt.scheduledAt.month,
+      appt.scheduledAt.day,
+    );
+    ref.invalidate(availableSlotsProvider((
+      barberUid: appt.barberUid,
+      date: apptDate,
+    )));
     if (mounted) setState(() => _loading = false);
   }
 
@@ -581,6 +592,20 @@ class _AdminAppointmentTileState
           newBarberUid: selected.uid,
           newBarberName: selected.fullName,
         );
+
+    final apptDate = DateTime(
+      appt.scheduledAt.year,
+      appt.scheduledAt.month,
+      appt.scheduledAt.day,
+    );
+    ref.invalidate(availableSlotsProvider((
+      barberUid: appt.barberUid,
+      date: apptDate,
+    )));
+    ref.invalidate(availableSlotsProvider((
+      barberUid: selected.uid,
+      date: apptDate,
+    )));
 
     if (mounted) setState(() => _loading = false);
   }
