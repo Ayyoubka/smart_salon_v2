@@ -122,6 +122,46 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
                 (sum, d) => sum + (d.expectedAmount - d.depositedAmount),
               );
 
+              // ── New: time-based KPIs ───────────────────────────────
+              final withCompletion =
+                  visits.where((v) => v.completedAt != null).toList();
+
+              // Mean of (completedAt − startedAt) across all visits
+              final totalServiceMinutes = withCompletion.fold<int>(
+                0,
+                (sum, v) =>
+                    sum + v.completedAt!.difference(v.startedAt).inMinutes,
+              );
+              final avgServiceMinutes =
+                  visitCount > 0 ? totalServiceMinutes / visitCount : 0.0;
+
+              // Day span: max(completedAt) − min(startedAt) per calendar day
+              final dayMinStart = <DateTime, DateTime>{};
+              final dayMaxEnd = <DateTime, DateTime>{};
+              for (final v in withCompletion) {
+                final day = DateTime(
+                  v.completedAt!.year,
+                  v.completedAt!.month,
+                  v.completedAt!.day,
+                );
+                if (!dayMinStart.containsKey(day) ||
+                    v.startedAt.isBefore(dayMinStart[day]!)) {
+                  dayMinStart[day] = v.startedAt;
+                }
+                if (!dayMaxEnd.containsKey(day) ||
+                    v.completedAt!.isAfter(dayMaxEnd[day]!)) {
+                  dayMaxEnd[day] = v.completedAt!;
+                }
+              }
+              double totalHours = 0;
+              for (final day in dayMinStart.keys) {
+                totalHours +=
+                    dayMaxEnd[day]!.difference(dayMinStart[day]!).inMinutes /
+                        60.0;
+              }
+              final avgHoursPerDay =
+                  daysWorked > 0 ? totalHours / daysWorked : 0.0;
+
               return GridView.count(
                 crossAxisCount: 2,
                 padding: const EdgeInsets.all(12),
@@ -157,6 +197,24 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
                   BarberStatCard(
                     label: 'Cash Gap',
                     value: '₪${cashGap.toStringAsFixed(0)}',
+                  ),
+                  BarberStatCard(
+                    label: 'Avg Service',
+                    value: visitCount > 0
+                        ? '${avgServiceMinutes.round()}m'
+                        : '—',
+                  ),
+                  BarberStatCard(
+                    label: 'Hours Worked',
+                    value: totalHours > 0
+                        ? '${totalHours.toStringAsFixed(1)}h'
+                        : '—',
+                  ),
+                  BarberStatCard(
+                    label: 'Avg Hours/Day',
+                    value: daysWorked > 0
+                        ? '${avgHoursPerDay.toStringAsFixed(1)}h'
+                        : '—',
                   ),
                 ],
               );
