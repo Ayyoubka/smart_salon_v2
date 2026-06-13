@@ -22,6 +22,14 @@ class _AdminAppointmentsScreenState
   DateTime _selectedDate = DateTime.now();
   String? _selectedBarberUid;
   AppointmentStatus? _selectedStatus;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   DateTime get _normalizedDate => DateTime(
         _selectedDate.year,
@@ -123,6 +131,31 @@ class _AdminAppointmentsScreenState
                 setState(() => _selectedStatus = status),
           ),
 
+          // ── Search ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name or phone',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                border: const OutlineInputBorder(),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.trim().toLowerCase()),
+            ),
+          ),
+
           // ── Content ───────────────────────────────────────────────
           Expanded(
             child: appointmentsAsync.when(
@@ -140,6 +173,13 @@ class _AdminAppointmentsScreenState
                 if (_selectedStatus != null) {
                   filtered = filtered
                       .where((a) => a.status == _selectedStatus)
+                      .toList();
+                }
+                if (_searchQuery.isNotEmpty) {
+                  filtered = filtered
+                      .where((a) =>
+                          a.clientName.toLowerCase().contains(_searchQuery) ||
+                          a.clientPhone.contains(_searchQuery))
                       .toList();
                 }
                 filtered

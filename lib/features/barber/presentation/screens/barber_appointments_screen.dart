@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../features/appointment/presentation/providers/appointments_provider.dart';
+import '../../../../features/appointment/presentation/providers/available_slots_provider.dart';
 import '../../../../features/appointment/presentation/screens/create_appointment_screen.dart';
 import '../../../../features/shift/presentation/providers/current_shift_provider.dart';
 import '../../../../features/visit/presentation/providers/visits_provider.dart';
@@ -20,6 +21,24 @@ class BarberAppointmentsScreen extends ConsumerStatefulWidget {
 class _BarberAppointmentsScreenState
     extends ConsumerState<BarberAppointmentsScreen> {
   _Tab _tab = _Tab.today;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<AppointmentModel> _applySearch(List<AppointmentModel> list) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return list;
+    return list
+        .where((a) =>
+            a.clientName.toLowerCase().contains(q) ||
+            a.clientPhone.contains(q))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +46,29 @@ class _BarberAppointmentsScreenState
       body: Column(
         children: [
           _TabBar(selected: _tab, onSelect: (t) => setState(() => _tab = t)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name or phone',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                border: const OutlineInputBorder(),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.trim().toLowerCase()),
+            ),
+          ),
           Expanded(child: _tabBody()),
         ],
       ),
@@ -51,7 +93,7 @@ class _BarberAppointmentsScreenState
         return async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
-          data: (appointments) => _TodayBody(appointments: appointments),
+          data: (appointments) => _TodayBody(appointments: _applySearch(appointments)),
         );
 
       case _Tab.tomorrow:
@@ -62,7 +104,7 @@ class _BarberAppointmentsScreenState
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
           data: (appointments) => _SimpleList(
-            appointments: appointments,
+            appointments: _applySearch(appointments),
             emptyMessage: 'No appointments tomorrow.',
           ),
         );
@@ -77,7 +119,7 @@ class _BarberAppointmentsScreenState
                 .where((a) => a.status == AppointmentStatus.scheduled)
                 .toList();
             return _SimpleList(
-              appointments: scheduled,
+              appointments: _applySearch(scheduled),
               emptyMessage: 'No upcoming appointments.',
             );
           },
@@ -333,9 +375,14 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
 
   Future<void> _cancelAppointment() async {
     setState(() => _loading = true);
+    final appt = widget.appointment;
     await ref
         .read(appointmentRepositoryProvider)
-        .cancelAppointment(widget.appointment.id);
+        .cancelAppointment(appt.id);
+    ref.invalidate(availableSlotsProvider((
+      barberUid: appt.barberUid,
+      date: appt.scheduledAt,
+    )));
     if (mounted) setState(() => _loading = false);
   }
 
@@ -370,34 +417,44 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
         ),
         title: Text(appt.clientName),
         subtitle: Text(appt.clientPhone),
-        trailing: appt.status == AppointmentStatus.scheduled && _isToday
+        trailing: appt.status == AppointmentStatus.scheduled
             ? _loading
                 ? const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FilledButton(
-                        onPressed: _markArrived,
-                        child: const Text('Arrived'),
-                      ),
-                      PopupMenuButton<String>(
+                : _isToday
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FilledButton(
+                            onPressed: _markArrived,
+                            child: const Text('Arrived'),
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'noShow') _markNoShow();
+                              if (value == 'cancel') _cancelAppointment();
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                  value: 'noShow', child: Text('No Show')),
+                              PopupMenuItem(
+                                  value: 'cancel', child: Text('Cancel')),
+                            ],
+                          ),
+                        ],
+                      )
+                    : PopupMenuButton<String>(
                         onSelected: (value) {
-                          if (value == 'noShow') _markNoShow();
                           if (value == 'cancel') _cancelAppointment();
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(
-                              value: 'noShow', child: Text('No Show')),
-                          PopupMenuItem(
                               value: 'cancel', child: Text('Cancel')),
                         ],
-                      ),
-                    ],
-                  )
+                      )
             : Text(
                 _formatStatus(appt.status),
                 style: theme.textTheme.bodySmall,
