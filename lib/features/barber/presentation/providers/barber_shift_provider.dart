@@ -54,10 +54,10 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
       return 'There are waiting clients';
     }
 
-    state = ShiftStatus.ended;
+    final shift = await ref.read(currentShiftProvider.future);
+    if (shift == null) return 'Shift data unavailable';
 
-    final shift = ref.read(currentShiftProvider).asData?.value;
-    if (shift == null) return null;
+    state = ShiftStatus.ended;
 
     await _createDeposit(shift, depositedAmount);
     await ref.read(shiftRepositoryProvider).endShift(shift.id);

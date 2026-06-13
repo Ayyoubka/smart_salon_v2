@@ -26,8 +26,9 @@ class BarberWaitingScreen extends ConsumerWidget {
         final waiting =
             visits.where((v) => v.status == VisitStatus.waiting).toList();
 
+        final Widget body;
         if (waiting.isEmpty) {
-          return Center(
+          body = Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -42,42 +43,60 @@ class BarberWaitingScreen extends ConsumerWidget {
               ],
             ),
           );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: waiting.length,
-          itemBuilder: (context, index) {
-            final visit = waiting[index];
-            return WaitingClientCard(
-              clientName: visit.clientName,
-              isEnabled: isShiftActive,
-              onStart: () async {
-                final hasInService = visits
-                    .any((v) => v.status == VisitStatus.inService);
-                if (hasInService) {
-                  final inServiceVisit = visits.firstWhere(
-                    (v) => v.status == VisitStatus.inService,
-                  );
-                  final amount = await PaymentDialog.show(
-                    context,
-                    inServiceVisit.clientName,
-                  );
-                  if (amount == null) return;
-                  await ref
-                      .read(visitRepositoryProvider)
-                      .completeVisit(inServiceVisit.id, amount);
+        } else {
+          body = ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+            itemCount: waiting.length,
+            itemBuilder: (context, index) {
+              final visit = waiting[index];
+              return WaitingClientCard(
+                clientName: visit.clientName,
+                isEnabled: isShiftActive,
+                onStart: () async {
+                  final hasInService =
+                      visits.any((v) => v.status == VisitStatus.inService);
+                  if (hasInService) {
+                    final inServiceVisit = visits.firstWhere(
+                      (v) => v.status == VisitStatus.inService,
+                    );
+                    final amount = await PaymentDialog.show(
+                      context,
+                      inServiceVisit.clientName,
+                    );
+                    if (amount == null) return;
+                    await ref
+                        .read(visitRepositoryProvider)
+                        .completeVisit(inServiceVisit.id, amount);
+                    await ref
+                        .read(visitRepositoryProvider)
+                        .startVisit(visit.id);
+                    ref.invalidate(visitsProvider);
+                    return;
+                  }
                   await ref
                       .read(visitRepositoryProvider)
                       .startVisit(visit.id);
                   ref.invalidate(visitsProvider);
-                  return;
-                }
-                await ref.read(visitRepositoryProvider).startVisit(visit.id);
-                ref.invalidate(visitsProvider);
-              },
-            );
-          },
+                },
+              );
+            },
+          );
+        }
+
+        return Stack(
+          children: [
+            body,
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                onPressed: shiftAsync.value == null
+                    ? null
+                    : () => _showAddClientDialog(context, ref),
+                child: const Icon(Icons.add),
+              ),
+            ),
+          ],
         );
       },
     );

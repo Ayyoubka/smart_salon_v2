@@ -94,16 +94,22 @@ class _ShiftButton extends StatelessWidget {
             if (!context.mounted) return;
 
             final visits = await ref.read(visitsProvider.future);
-            final hasCompleted =
-                visits.any((v) => v.status == VisitStatus.completed);
+            final completed = visits
+                .where((v) => v.status == VisitStatus.completed)
+                .toList();
 
             double depositedAmount = 0;
-            if (hasCompleted) {
+            if (completed.isNotEmpty) {
+              final expectedAmount = completed.fold(
+                0.0,
+                (sum, v) => sum + v.amountPaid,
+              );
               if (!context.mounted) return;
               final amount = await showDialog<double>(
                 context: context,
                 barrierDismissible: false,
-                builder: (ctx) => const _CashDepositDialog(),
+                builder: (ctx) =>
+                    _CashDepositDialog(expectedAmount: expectedAmount),
               );
               if (amount == null) return;
               depositedAmount = amount;
@@ -127,7 +133,9 @@ class _ShiftButton extends StatelessWidget {
 }
 
 class _CashDepositDialog extends StatefulWidget {
-  const _CashDepositDialog();
+  final double expectedAmount;
+
+  const _CashDepositDialog({required this.expectedAmount});
 
   @override
   State<_CashDepositDialog> createState() => _CashDepositDialogState();
@@ -152,14 +160,23 @@ class _CashDepositDialogState extends State<_CashDepositDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Cash Deposit'),
-      content: TextField(
-        controller: _controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'How much cash are you depositing?',
-        ),
-        autofocus: true,
-        onChanged: _onChanged,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Expected: ₪${widget.expectedAmount.toStringAsFixed(0)}'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'How much cash are you depositing?',
+            ),
+            autofocus: true,
+            onChanged: _onChanged,
+          ),
+        ],
       ),
       actions: [
         TextButton(
