@@ -137,6 +137,26 @@ class AppointmentRepository {
     });
   }
 
+  Future<List<AppointmentModel>> getUpcomingAppointmentsForBarber({
+    required String barberUid,
+    required DateTime fromDate,
+  }) async {
+    final from = DateTime(fromDate.year, fromDate.month, fromDate.day);
+
+    final snap = await _db
+        .collection(FirestoreConstants.appointments)
+        .where('barberUid', isEqualTo: barberUid)
+        .where('scheduledAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+        .orderBy('scheduledAt')
+        .limit(50)
+        .get();
+
+    return snap.docs
+        .map((doc) => AppointmentModel.fromMap(doc.id, doc.data()))
+        .toList();
+  }
+
   Stream<List<AppointmentModel>> watchAppointmentsForBarberOnDate({
     required String barberUid,
     required DateTime date,

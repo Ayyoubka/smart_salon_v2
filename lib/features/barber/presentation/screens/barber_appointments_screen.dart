@@ -7,68 +7,183 @@ import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../../../../shared/models/appointment_model.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
 
-class BarberAppointmentsScreen extends ConsumerWidget {
+enum _Tab { today, tomorrow, upcoming }
+
+class BarberAppointmentsScreen extends ConsumerStatefulWidget {
   const BarberAppointmentsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final appointmentsAsync = ref.watch(todayBarberAppointmentsProvider);
+  ConsumerState<BarberAppointmentsScreen> createState() =>
+      _BarberAppointmentsScreenState();
+}
 
+class _BarberAppointmentsScreenState
+    extends ConsumerState<BarberAppointmentsScreen> {
+  _Tab _tab = _Tab.today;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      body: appointmentsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (appointments) {
-          final sorted = [...appointments]
-            ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-
-          final scheduled =
-              appointments.where((a) => a.status == AppointmentStatus.scheduled).length;
-          final arrived =
-              appointments.where((a) => a.status == AppointmentStatus.arrived).length;
-          final noShow =
-              appointments.where((a) => a.status == AppointmentStatus.noShow).length;
-          final cancelled =
-              appointments.where((a) => a.status == AppointmentStatus.cancelled).length;
-
-          return Column(
-            children: [
-              _ScheduleSummary(
-                scheduled: scheduled,
-                arrived: arrived,
-                noShow: noShow,
-                cancelled: cancelled,
-              ),
-              if (sorted.isEmpty)
-                const Expanded(
-                  child: Center(child: Text('No appointments today')),
-                )
-              else
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: sorted.length,
-                    itemBuilder: (context, index) {
-                      return _AppointmentTile(appointment: sorted[index]);
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
+      body: Column(
+        children: [
+          _TabBar(selected: _tab, onSelect: (t) => setState(() => _tab = t)),
+          Expanded(child: _tabBody()),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('New Appointment'),
         onPressed: () async {
-          final navigator = Navigator.of(context);
-          await navigator.push(
+          await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const CreateAppointmentScreen(),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _tabBody() {
+    switch (_tab) {
+      case _Tab.today:
+        final async = ref.watch(todayBarberAppointmentsProvider);
+        return async.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (appointments) => _TodayBody(appointments: appointments),
+        );
+
+      case _Tab.tomorrow:
+        final now = DateTime.now();
+        final tomorrow = DateTime(now.year, now.month, now.day + 1);
+        final async = ref.watch(appointmentsByDateProvider(tomorrow));
+        return async.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (appointments) => _SimpleList(
+            appointments: appointments,
+            emptyMessage: 'No appointments tomorrow.',
+          ),
+        );
+
+      case _Tab.upcoming:
+        final async = ref.watch(upcomingBarberAppointmentsProvider);
+        return async.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (appointments) {
+            final scheduled = appointments
+                .where((a) => a.status == AppointmentStatus.scheduled)
+                .toList();
+            return _SimpleList(
+              appointments: scheduled,
+              emptyMessage: 'No upcoming appointments.',
+            );
+          },
+        );
+    }
+  }
+}
+
+// ── Tab Bar ───────────────────────────────────────────────────────────────────
+
+class _TabBar extends StatelessWidget {
+  final _Tab selected;
+  final ValueChanged<_Tab> onSelect;
+
+  const _TabBar({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: SegmentedButton<_Tab>(
+        segments: const [
+          ButtonSegment(value: _Tab.today, label: Text('Today')),
+          ButtonSegment(value: _Tab.tomorrow, label: Text('Tomorrow')),
+          ButtonSegment(value: _Tab.upcoming, label: Text('Upcoming')),
+        ],
+        selected: {selected},
+        onSelectionChanged: (s) => onSelect(s.first),
+        showSelectedIcon: false,
+      ),
+    );
+  }
+}
+
+// ── Today body (with summary card) ───────────────────────────────────────────
+
+class _TodayBody extends StatelessWidget {
+  final List<AppointmentModel> appointments;
+
+  const _TodayBody({required this.appointments});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...appointments]
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+
+    final scheduled =
+        appointments.where((a) => a.status == AppointmentStatus.scheduled).length;
+    final arrived =
+        appointments.where((a) => a.status == AppointmentStatus.arrived).length;
+    final noShow =
+        appointments.where((a) => a.status == AppointmentStatus.noShow).length;
+    final cancelled =
+        appointments.where((a) => a.status == AppointmentStatus.cancelled).length;
+
+    return Column(
+      children: [
+        _ScheduleSummary(
+          scheduled: scheduled,
+          arrived: arrived,
+          noShow: noShow,
+          cancelled: cancelled,
+        ),
+        if (sorted.isEmpty)
+          const Expanded(
+            child: Center(child: Text('No appointments today.')),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: sorted.length,
+              itemBuilder: (context, index) =>
+                  _AppointmentTile(appointment: sorted[index]),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Simple list (Tomorrow + Upcoming) ────────────────────────────────────────
+
+class _SimpleList extends StatelessWidget {
+  final List<AppointmentModel> appointments;
+  final String emptyMessage;
+
+  const _SimpleList({
+    required this.appointments,
+    required this.emptyMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (appointments.isEmpty) {
+      return Center(child: Text(emptyMessage));
+    }
+
+    final sorted = [...appointments]
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: sorted.length,
+      itemBuilder: (context, index) =>
+          _AppointmentTile(appointment: sorted[index]),
     );
   }
 }
@@ -149,6 +264,14 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
     return '$h:$m';
   }
 
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
   String _formatStatus(AppointmentStatus status) {
     switch (status) {
       case AppointmentStatus.scheduled:
@@ -160,6 +283,12 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
       case AppointmentStatus.cancelled:
         return 'Cancelled';
     }
+  }
+
+  bool get _isToday {
+    final now = DateTime.now();
+    final d = widget.appointment.scheduledAt;
+    return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
   Future<void> _markArrived() async {
@@ -196,21 +325,17 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
 
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
-
     await ref
         .read(appointmentRepositoryProvider)
         .markNoShow(widget.appointment.id);
-
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _cancelAppointment() async {
     setState(() => _loading = true);
-
     await ref
         .read(appointmentRepositoryProvider)
         .cancelAppointment(widget.appointment.id);
-
     if (mounted) setState(() => _loading = false);
   }
 
@@ -233,13 +358,19 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
                   ),
                 )
             : null,
-        leading: Text(
-          _formatTime(appt.scheduledAt),
-          style: theme.textTheme.titleMedium,
+        leading: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_formatTime(appt.scheduledAt),
+                style: theme.textTheme.titleMedium),
+            if (!_isToday)
+              Text(_formatDate(appt.scheduledAt),
+                  style: theme.textTheme.bodySmall),
+          ],
         ),
         title: Text(appt.clientName),
         subtitle: Text(appt.clientPhone),
-        trailing: appt.status == AppointmentStatus.scheduled
+        trailing: appt.status == AppointmentStatus.scheduled && _isToday
             ? _loading
                 ? const SizedBox(
                     width: 16,
@@ -260,13 +391,9 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(
-                            value: 'noShow',
-                            child: Text('No Show'),
-                          ),
+                              value: 'noShow', child: Text('No Show')),
                           PopupMenuItem(
-                            value: 'cancel',
-                            child: Text('Cancel'),
-                          ),
+                              value: 'cancel', child: Text('Cancel')),
                         ],
                       ),
                     ],

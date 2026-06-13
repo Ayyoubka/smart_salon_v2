@@ -39,6 +39,24 @@ final appointmentsByDateProvider =
   },
 );
 
+/// fromDate is normalised to midnight internally.
+final upcomingBarberAppointmentsProvider =
+    FutureProvider<List<AppointmentModel>>((ref) async {
+  final user = await ref.watch(currentUserProvider.future);
+  if (user == null) return [];
+
+  final now = DateTime.now();
+  final dayAfterTomorrow =
+      DateTime(now.year, now.month, now.day).add(const Duration(days: 2));
+
+  return ref
+      .read(appointmentRepositoryProvider)
+      .getUpcomingAppointmentsForBarber(
+        barberUid: user.uid,
+        fromDate: dayAfterTomorrow,
+      );
+});
+
 /// Admin use. Parameter must be normalised to midnight: DateTime(year, month, day).
 final salonAppointmentsByDateProvider =
     StreamProvider.family<List<AppointmentModel>, DateTime>(
