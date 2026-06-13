@@ -114,6 +114,7 @@ class _RescheduleAppointmentScreenState
       appt.scheduledAt.hour,
       appt.scheduledAt.minute,
     );
+    if (currentSlot.isBefore(DateTime.now())) return slots;
     if (slots.any((s) => s == currentSlot)) return slots;
 
     final merged = [...slots, currentSlot]
@@ -185,7 +186,10 @@ class _RescheduleAppointmentScreenState
             // ── Save ──────────────────────────────────────────────────
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: _saving ? null : _save,
+              onPressed: (_saving ||
+                      _selectedSlot == widget.appointment.scheduledAt)
+                  ? null
+                  : _save,
               child: _saving
                   ? const SizedBox(
                       width: 16,
