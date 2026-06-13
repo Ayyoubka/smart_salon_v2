@@ -7,6 +7,7 @@ import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../../../../shared/models/client_model.dart';
 import '../../../../shared/models/visit_model.dart';
 import '../providers/barber_shift_provider.dart';
+import '../widgets/payment_dialog.dart';
 import '../widgets/waiting_client_card.dart';
 
 class BarberWaitingScreen extends ConsumerWidget {
@@ -55,11 +56,21 @@ class BarberWaitingScreen extends ConsumerWidget {
                 final hasInService = visits
                     .any((v) => v.status == VisitStatus.inService);
                 if (hasInService) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Finish current client first'),
-                    ),
+                  final inServiceVisit = visits.firstWhere(
+                    (v) => v.status == VisitStatus.inService,
                   );
+                  final amount = await PaymentDialog.show(
+                    context,
+                    inServiceVisit.clientName,
+                  );
+                  if (amount == null) return;
+                  await ref
+                      .read(visitRepositoryProvider)
+                      .completeVisit(inServiceVisit.id, amount);
+                  await ref
+                      .read(visitRepositoryProvider)
+                      .startVisit(visit.id);
+                  ref.invalidate(visitsProvider);
                   return;
                 }
                 await ref.read(visitRepositoryProvider).startVisit(visit.id);

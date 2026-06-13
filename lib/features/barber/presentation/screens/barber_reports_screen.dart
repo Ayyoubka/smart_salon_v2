@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../features/deposit/presentation/providers/deposits_provider.dart';
 import '../../../../features/user/presentation/providers/current_user_provider.dart';
 import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../widgets/barber_stat_card.dart';
@@ -54,6 +55,7 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
       start: start,
       end: end,
     )));
+    final depositsAsync = ref.watch(depositsProvider);
 
     return Column(
       children: [
@@ -77,6 +79,7 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
             data: (visits) {
+              // ── Existing KPIs ──────────────────────────────────────
               final visitCount = visits.length;
               final uniqueClients = visits
                   .map((v) => v.clientId)
@@ -85,6 +88,39 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
                   .length;
               final revenue =
                   visits.fold<double>(0, (sum, v) => sum + v.amountPaid);
+
+              // ── New: visits-derived KPIs ───────────────────────────
+              final avgPerVisit =
+                  visitCount > 0 ? revenue / visitCount : 0.0;
+              final daysWorked = visits
+                  .where((v) => v.completedAt != null)
+                  .map((v) => DateTime(
+                        v.completedAt!.year,
+                        v.completedAt!.month,
+                        v.completedAt!.day,
+                      ))
+                  .toSet()
+                  .length;
+
+              // ── New: deposit KPIs (in-memory period filter) ────────
+              final allDeposits = depositsAsync.asData?.value ?? [];
+              final periodDeposits = allDeposits.where((d) {
+                final bd = DateTime(
+                  d.businessDate.year,
+                  d.businessDate.month,
+                  d.businessDate.day,
+                );
+                return !bd.isBefore(start) && bd.isBefore(end);
+              }).toList();
+
+              final totalDeposited = periodDeposits.fold<double>(
+                0,
+                (sum, d) => sum + d.depositedAmount,
+              );
+              final cashGap = periodDeposits.fold<double>(
+                0,
+                (sum, d) => sum + (d.expectedAmount - d.depositedAmount),
+              );
 
               return GridView.count(
                 crossAxisCount: 2,
@@ -103,6 +139,24 @@ class _BarberReportsScreenState extends ConsumerState<BarberReportsScreen> {
                   BarberStatCard(
                     label: 'Revenue',
                     value: '₪${revenue.toStringAsFixed(0)}',
+                  ),
+                  BarberStatCard(
+                    label: 'Avg / Visit',
+                    value: visitCount > 0
+                        ? '₪${avgPerVisit.toStringAsFixed(0)}'
+                        : '—',
+                  ),
+                  BarberStatCard(
+                    label: 'Days Worked',
+                    value: '$daysWorked',
+                  ),
+                  BarberStatCard(
+                    label: 'Deposited',
+                    value: '₪${totalDeposited.toStringAsFixed(0)}',
+                  ),
+                  BarberStatCard(
+                    label: 'Cash Gap',
+                    value: '₪${cashGap.toStringAsFixed(0)}',
                   ),
                 ],
               );
