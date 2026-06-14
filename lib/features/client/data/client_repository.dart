@@ -1,15 +1,19 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/firestore_constants.dart';
 import '../../../shared/models/client_model.dart';
 
 class ClientRepository {
   final _db = FirebaseFirestore.instance;
 
+  String _normalizePhone(String phone) =>
+      phone.trim().replaceAll(RegExp(r'\D'), '');
+
   Future<ClientModel> createClient({
     required String salonId,
     required String fullName,
     required String phone,
   }) async {
+    phone = _normalizePhone(phone);
     final ref = _db.collection(FirestoreConstants.clients).doc();
     final model = ClientModel(
       id: ref.id,
@@ -28,11 +32,12 @@ class ClientRepository {
     required String prefix,
     int limit = 10,
   }) async {
+    prefix = _normalizePhone(prefix);
     final snap = await _db
         .collection(FirestoreConstants.clients)
         .where('salonId', isEqualTo: salonId)
         .where('phone', isGreaterThanOrEqualTo: prefix)
-        .where('phone', isLessThan: '$prefix')
+        .where('phone', isLessThan: '${prefix}z')
         .orderBy('phone')
         .limit(limit)
         .get();
@@ -48,6 +53,7 @@ class ClientRepository {
     required String salonId,
     required String phone,
   }) async {
+    phone = _normalizePhone(phone);
     final snap = await _db
         .collection(FirestoreConstants.clients)
         .where('salonId', isEqualTo: salonId)
