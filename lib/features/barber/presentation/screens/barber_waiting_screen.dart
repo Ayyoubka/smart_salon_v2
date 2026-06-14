@@ -52,6 +52,32 @@ class BarberWaitingScreen extends ConsumerWidget {
               return WaitingClientCard(
                 clientName: visit.clientName,
                 isEnabled: isShiftActive,
+                onRemove: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Remove Client'),
+                      content: Text(
+                        'Remove ${visit.clientName} from the queue?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text('Remove'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  await ref
+                      .read(visitRepositoryProvider)
+                      .removeWaitingVisit(visit.id);
+                  ref.invalidate(visitsProvider);
+                },
                 onStart: () async {
                   final hasInService =
                       visits.any((v) => v.status == VisitStatus.inService);
