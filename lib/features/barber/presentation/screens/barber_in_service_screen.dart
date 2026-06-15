@@ -39,7 +39,6 @@ class BarberInServiceScreen extends ConsumerWidget {
                 await ref
                     .read(visitRepositoryProvider)
                     .completeVisit(visit.id, amount);
-                ref.invalidate(visitsProvider);
               },
             );
           },

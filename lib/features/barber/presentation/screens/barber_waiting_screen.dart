@@ -76,7 +76,6 @@ class BarberWaitingScreen extends ConsumerWidget {
                   await ref
                       .read(visitRepositoryProvider)
                       .removeWaitingVisit(visit.id);
-                  ref.invalidate(visitsProvider);
                 },
                 onStart: () async {
                   final hasInService =
@@ -96,13 +95,11 @@ class BarberWaitingScreen extends ConsumerWidget {
                     await ref
                         .read(visitRepositoryProvider)
                         .startVisit(visit.id);
-                    ref.invalidate(visitsProvider);
                     return;
                   }
                   await ref
                       .read(visitRepositoryProvider)
                       .startVisit(visit.id);
-                  ref.invalidate(visitsProvider);
                 },
               );
             },
@@ -177,7 +174,6 @@ class BarberWaitingScreen extends ConsumerWidget {
                 phone: phone,
                 shiftId: shift.id,
               );
-          ref.invalidate(visitsProvider);
         },
       ),
     );

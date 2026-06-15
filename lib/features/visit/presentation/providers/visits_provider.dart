@@ -7,11 +7,14 @@ final visitRepositoryProvider = Provider<VisitRepository>(
   (_) => VisitRepository(),
 );
 
-final visitsProvider = FutureProvider<List<VisitModel>>((ref) async {
+final visitsProvider = StreamProvider<List<VisitModel>>((ref) async* {
   final shift = await ref.watch(currentShiftProvider.future);
-  if (shift == null) return [];
+  if (shift == null) {
+    yield [];
+    return;
+  }
 
-  return ref.read(visitRepositoryProvider).getVisitsByShift(shift.id);
+  yield* ref.read(visitRepositoryProvider).watchVisitsByShift(shift.id);
 });
 
 typedef BarberPeriodArg = ({String barberUid, DateTime start, DateTime end});

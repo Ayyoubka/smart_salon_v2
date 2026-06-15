@@ -8,6 +8,10 @@ import '../../../appointment/presentation/screens/create_appointment_screen.dart
 import '../../../appointment/presentation/screens/reschedule_appointment_screen.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
+import '../../../../shared/models/client_model.dart';
+import '../../../client/presentation/providers/clients_provider.dart';
+import '../../../client/presentation/widgets/client_phone_autocomplete.dart';
+import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/admin_providers.dart';
 import '../../../shift/presentation/providers/current_shift_provider.dart';
 import '../../../visit/presentation/providers/visits_provider.dart';
@@ -61,6 +65,9 @@ class _AdminAppointmentsScreenState
   }
 
   Future<void> _showBarberPickerForCreate(List<UserModel> barbers) async {
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null || !mounted) return;
+
     final barber = await showDialog<UserModel>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -82,15 +89,121 @@ class _AdminAppointmentsScreenState
 
     if (barber == null || !mounted) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CreateAppointmentScreen(
-          targetBarberUid: barber.uid,
-          targetBarberName: barber.fullName,
-        ),
+    final isWalkIn = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(barber.fullName),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const ListTile(
+              leading: Icon(Icons.calendar_today),
+              title: Text('Schedule Appointment'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const ListTile(
+              leading: Icon(Icons.person_add),
+              title: Text('Add Walk-in'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
       ),
     );
 
+    if (isWalkIn == null || !mounted) return;
+
+    if (!isWalkIn) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CreateAppointmentScreen(
+            targetBarberUid: barber.uid,
+            targetBarberName: barber.fullName,
+          ),
+        ),
+      );
+    } else {
+      await _showWalkInDialog(barber, user.salonId);
+    }
+  }
+
+  Future<void> _showWalkInDialog(UserModel barber, String salonId) async {
+    final shift = await ref.read(shiftRepositoryProvider).getActiveShift(
+          salonId: salonId,
+          barberUid: barber.uid,
+        );
+
+    if (!mounted) return;
+
+    if (shift == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Barber Not Active'),
+          content: Text('${barber.fullName} has not started a shift yet.'),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _WalkInClientDialog(
+        onSearch: (prefix) => ref
+            .read(clientRepositoryProvider)
+            .searchByPhonePrefix(salonId: salonId, prefix: prefix),
+        onSave: (fullName, phone, foundClient) async {
+          final String clientId;
+          final String clientName;
+
+          if (foundClient != null) {
+            clientId = foundClient.id;
+            clientName = foundClient.fullName;
+          } else if (phone.isNotEmpty) {
+            final existing = await ref
+                .read(clientRepositoryProvider)
+                .getClientByPhone(salonId: salonId, phone: phone);
+            if (existing != null) {
+              clientId = existing.id;
+              clientName = existing.fullName;
+            } else {
+              final created = await ref
+                  .read(clientRepositoryProvider)
+                  .createClient(
+                    salonId: salonId,
+                    fullName: fullName,
+                    phone: phone,
+                  );
+              clientId = created.id;
+              clientName = fullName;
+            }
+          } else {
+            clientId = '';
+            clientName = fullName;
+          }
+
+          await ref.read(visitRepositoryProvider).createWaitingVisit(
+                salonId: salonId,
+                barberUid: barber.uid,
+                clientId: clientId,
+                clientName: clientName,
+                phone: phone,
+                shiftId: shift.id,
+              );
+        },
+      ),
+    );
   }
 
   @override
@@ -728,6 +841,114 @@ class _AdminAppointmentTileState
                 style: theme.textTheme.bodySmall,
               ),
       ),
+    );
+  }
+}
+
+// ── Walk-in Client Dialog ─────────────────────────────────────────────────────
+
+class _WalkInClientDialog extends StatefulWidget {
+  final Future<List<ClientModel>> Function(String prefix) onSearch;
+  final Future<void> Function(
+    String fullName,
+    String phone,
+    ClientModel? foundClient,
+  ) onSave;
+
+  const _WalkInClientDialog({required this.onSearch, required this.onSave});
+
+  @override
+  State<_WalkInClientDialog> createState() => _WalkInClientDialogState();
+}
+
+class _WalkInClientDialogState extends State<_WalkInClientDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _phoneController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _loading = false;
+  ClientModel? _foundClient;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  String? _validatePhone(String? v) {
+    if (v == null || v.trim().isEmpty) return null;
+    if (!RegExp(r'^05\d{8}$').hasMatch(v.trim())) {
+      return 'Must be 10 digits starting with 05';
+    }
+    return null;
+  }
+
+  void _onClientSelected(ClientModel? client) {
+    setState(() {
+      if (_foundClient != null && client == null) _nameController.clear();
+      _foundClient = client;
+      if (client != null) _nameController.text = client.fullName;
+    });
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    final phone = _phoneController.text.trim();
+    await widget.onSave(
+      _nameController.text.trim(),
+      phone == '05' ? '' : phone,
+      _foundClient,
+    );
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Walk-in'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClientPhoneAutocomplete(
+                controller: _phoneController,
+                onSearch: widget.onSearch,
+                onClientSelected: _onClientSelected,
+                validator: _validatePhone,
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Full Name'),
+                textCapitalization: TextCapitalization.words,
+                readOnly: _foundClient != null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _save,
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Add to Waiting'),
+        ),
+      ],
     );
   }
 }

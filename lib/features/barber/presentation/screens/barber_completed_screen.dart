@@ -46,7 +46,6 @@ class BarberCompletedScreen extends ConsumerWidget {
                       await ref
                           .read(visitRepositoryProvider)
                           .updateAmountPaid(visit.id, newAmount);
-                      ref.invalidate(visitsProvider);
                       ref.invalidate(barberPeriodVisitsProvider);
                     }
                   : null,

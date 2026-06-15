@@ -361,8 +361,6 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
           visitId: visit.id,
         );
 
-    ref.invalidate(visitsProvider);
-
     if (mounted) setState(() => _loading = false);
   }
 

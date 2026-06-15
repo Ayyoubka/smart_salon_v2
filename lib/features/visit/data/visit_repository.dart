@@ -67,6 +67,17 @@ class VisitRepository {
         .toList();
   }
 
+  Stream<List<VisitModel>> watchVisitsByShift(String shiftId) {
+    return _db
+        .collection(FirestoreConstants.visits)
+        .where('shiftId', isEqualTo: shiftId)
+        .orderBy('startedAt')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => VisitModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
   Future<List<VisitModel>> getCompletedVisitsByBarberInPeriod({
     required String barberUid,
     required DateTime start,
