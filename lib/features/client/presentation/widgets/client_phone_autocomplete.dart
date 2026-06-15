@@ -34,6 +34,12 @@ class _ClientPhoneAutocompleteState extends State<ClientPhoneAutocomplete> {
   static const _debounceTime = Duration(milliseconds: 300);
 
   @override
+  void initState() {
+    super.initState();
+    widget.controller.text = '05';
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
     super.dispose();
@@ -109,13 +115,12 @@ class _ClientPhoneAutocompleteState extends State<ClientPhoneAutocomplete> {
                 : null,
           ),
           keyboardType: TextInputType.phone,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(10),
-          ],
+          inputFormatters: [_IsraeliPhoneFormatter()],
           autofocus: widget.autofocus,
           onChanged: _onChanged,
-          validator: widget.validator,
+          validator: widget.validator == null
+              ? null
+              : (v) => widget.validator!(v == '05' ? '' : v),
         ),
         if (_suggestions.isNotEmpty)
           Card(
@@ -141,6 +146,36 @@ class _ClientPhoneAutocompleteState extends State<ClientPhoneAutocomplete> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _IsraeliPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+
+    // Empty after stripping: reset to prefix
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '05',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+    }
+
+    // Doesn't start with '05': reject paste/input, restore previous value
+    if (!digits.startsWith('05')) {
+      return oldValue;
+    }
+
+    // Valid prefix — accept up to 10 digits
+    final capped = digits.length > 10 ? digits.substring(0, 10) : digits;
+    return TextEditingValue(
+      text: capped,
+      selection: TextSelection.collapsed(offset: capped.length),
     );
   }
 }
