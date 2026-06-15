@@ -2,13 +2,25 @@ import 'package:flutter/material.dart';
 
 class PaymentDialog extends StatefulWidget {
   final String clientName;
+  final double? initialAmount;
 
-  const PaymentDialog({super.key, required this.clientName});
+  const PaymentDialog({
+    super.key,
+    required this.clientName,
+    this.initialAmount,
+  });
 
-  static Future<double?> show(BuildContext context, String clientName) {
+  static Future<double?> show(
+    BuildContext context,
+    String clientName, {
+    double? initialAmount,
+  }) {
     return showDialog<double>(
       context: context,
-      builder: (_) => PaymentDialog(clientName: clientName),
+      builder: (_) => PaymentDialog(
+        clientName: clientName,
+        initialAmount: initialAmount,
+      ),
     );
   }
 
@@ -19,6 +31,14 @@ class PaymentDialog extends StatefulWidget {
 class _PaymentDialogState extends State<PaymentDialog> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialAmount != null) {
+      _controller.text = widget.initialAmount!.toStringAsFixed(0);
+    }
+  }
 
   @override
   void dispose() {

@@ -9,6 +9,8 @@ import '../../../appointment/presentation/screens/reschedule_appointment_screen.
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
 import '../providers/admin_providers.dart';
+import '../../../shift/presentation/providers/current_shift_provider.dart';
+import '../../../visit/presentation/providers/visits_provider.dart';
 import 'admin_deposits_screen.dart';
 
 class AdminAppointmentsScreen extends ConsumerStatefulWidget {
@@ -464,6 +466,54 @@ class _AdminAppointmentTileState
     }
   }
 
+  Future<void> _markArrived() async {
+    setState(() => _loading = true);
+    final appt = widget.appointment;
+
+    final shift = await ref.read(shiftRepositoryProvider).getActiveShift(
+          salonId: appt.salonId,
+          barberUid: appt.barberUid,
+        );
+
+    if (!mounted) return;
+
+    if (shift == null) {
+      setState(() => _loading = false);
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Barber Not Active'),
+          content: const Text(
+            'This barber has not started a shift yet.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
+          salonId: appt.salonId,
+          barberUid: appt.barberUid,
+          clientId: appt.clientId,
+          clientName: appt.clientName,
+          phone: appt.clientPhone,
+          shiftId: shift.id,
+        );
+
+    await ref.read(appointmentRepositoryProvider).markArrived(
+          appointmentId: appt.id,
+          visitId: visit.id,
+        );
+
+    if (mounted) setState(() => _loading = false);
+  }
+
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
     await ref
@@ -644,12 +694,17 @@ class _AdminAppointmentTileState
                   )
                 : PopupMenuButton<String>(
                     onSelected: (value) {
+                      if (value == 'arrived') _markArrived();
                       if (value == 'noShow') _markNoShow();
                       if (value == 'cancel') _cancelAppointment();
                       if (value == 'reschedule') _reschedule();
                       if (value == 'reassign') _reassign();
                     },
                     itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'arrived',
+                        child: Text('Mark Arrived'),
+                      ),
                       PopupMenuItem(
                         value: 'noShow',
                         child: Text('Mark No Show'),

@@ -3,11 +3,63 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/admin_providers.dart';
 
-class AdminDepositsScreen extends ConsumerWidget {
+enum _DepositPeriod { all, today, thisWeek, thisMonth }
+
+class AdminDepositsScreen extends ConsumerStatefulWidget {
   const AdminDepositsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDepositsScreen> createState() =>
+      _AdminDepositsScreenState();
+}
+
+class _AdminDepositsScreenState extends ConsumerState<AdminDepositsScreen> {
+  _DepositPeriod _period = _DepositPeriod.all;
+
+  (DateTime, DateTime)? _dateRange() {
+    final now = DateTime.now();
+    switch (_period) {
+      case _DepositPeriod.all:
+        return null;
+      case _DepositPeriod.today:
+        final start = DateTime(now.year, now.month, now.day);
+        return (start, start.add(const Duration(days: 1)));
+      case _DepositPeriod.thisWeek:
+        final monday = now.subtract(Duration(days: now.weekday - 1));
+        final start = DateTime(monday.year, monday.month, monday.day);
+        return (start, start.add(const Duration(days: 7)));
+      case _DepositPeriod.thisMonth:
+        final start = DateTime(now.year, now.month, 1);
+        return (start, DateTime(now.year, now.month + 1, 1));
+    }
+  }
+
+  String _periodLabel() {
+    switch (_period) {
+      case _DepositPeriod.all:
+        return 'All Time';
+      case _DepositPeriod.today:
+        return 'Today';
+      case _DepositPeriod.thisWeek:
+        return 'This Week';
+      case _DepositPeriod.thisMonth:
+        return 'This Month';
+    }
+  }
+
+  Widget _chip(_DepositPeriod period, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _period == period,
+        onSelected: (_) => setState(() => _period = period),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final depositsAsync = ref.watch(adminDepositsProvider);
 
     return Scaffold(
@@ -15,10 +67,20 @@ class AdminDepositsScreen extends ConsumerWidget {
       body: depositsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
-        data: (deposits) {
-          if (deposits.isEmpty) {
-            return const Center(child: Text('No deposits found.'));
-          }
+        data: (allDeposits) {
+          // In-memory period filter
+          final range = _dateRange();
+          final deposits = range == null
+              ? allDeposits
+              : allDeposits.where((d) {
+                  final (start, end) = range;
+                  final bd = DateTime(
+                    d.businessDate.year,
+                    d.businessDate.month,
+                    d.businessDate.day,
+                  );
+                  return !bd.isBefore(start) && bd.isBefore(end);
+                }).toList();
 
           final totalExpected =
               deposits.fold(0.0, (sum, d) => sum + d.expectedAmount);
@@ -30,72 +92,107 @@ class AdminDepositsScreen extends ConsumerWidget {
 
           return Column(
             children: [
+              // ── Period chips ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _chip(_DepositPeriod.all, 'All'),
+                      _chip(_DepositPeriod.today, 'Today'),
+                      _chip(_DepositPeriod.thisWeek, 'This Week'),
+                      _chip(_DepositPeriod.thisMonth, 'This Month'),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── Summary card ─────────────────────────────────────────
               Card(
-                margin: const EdgeInsets.all(12),
+                margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
                     children: [
-                      _SummaryItem(
-                        label: 'Expected',
-                        value: totalExpected.toStringAsFixed(2),
+                      Text(
+                        _periodLabel(),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                      _SummaryItem(
-                        label: 'Deposited',
-                        value: totalDeposited.toStringAsFixed(2),
-                      ),
-                      _SummaryItem(
-                        label: 'Gap',
-                        value: cashGap.toStringAsFixed(2),
-                        valueColor: cashGap > 0 ? Colors.red : null,
-                      ),
-                      _SummaryItem(
-                        label: 'Clients',
-                        value: '$totalClients',
-                        isCurrency: false,
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _SummaryItem(
+                            label: 'Expected',
+                            value: totalExpected.toStringAsFixed(2),
+                          ),
+                          _SummaryItem(
+                            label: 'Deposited',
+                            value: totalDeposited.toStringAsFixed(2),
+                          ),
+                          _SummaryItem(
+                            label: 'Gap',
+                            value: cashGap.toStringAsFixed(2),
+                            valueColor: cashGap > 0 ? Colors.red : null,
+                          ),
+                          _SummaryItem(
+                            label: 'Clients',
+                            value: '$totalClients',
+                            isCurrency: false,
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: deposits.length,
-                  itemBuilder: (context, index) {
-                    final d = deposits[index];
-                    final date =
-                        DateFormat('dd/MM/yyyy').format(d.businessDate);
-                    return ListTile(
-                      title: Text(d.barberName),
-                      subtitle: Text(date),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                              'Expected: ${d.expectedAmount.toStringAsFixed(2)}'),
-                          Text(
-                              'Deposited: ${d.depositedAmount.toStringAsFixed(2)}'),
-                        ],
-                      ),
-                      isThreeLine: false,
-                      leading: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '${d.clientsCount}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const Text('clients',
-                              style: TextStyle(fontSize: 11)),
-                        ],
-                      ),
-                    );
-                  },
+
+              // ── Deposit list ──────────────────────────────────────────
+              if (deposits.isEmpty)
+                const Expanded(
+                  child: Center(child: Text('No deposits for this period.')),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: deposits.length,
+                    itemBuilder: (context, index) {
+                      final d = deposits[index];
+                      final date = DateFormat('dd/MM/yyyy')
+                          .format(d.businessDate);
+                      return ListTile(
+                        leading: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${d.clientsCount}',
+                              style:
+                                  Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const Text(
+                              'clients',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
+                        title: Text(d.barberName),
+                        subtitle: Text(date),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                                'Expected: ${d.expectedAmount.toStringAsFixed(2)}'),
+                            Text(
+                                'Deposited: ${d.depositedAmount.toStringAsFixed(2)}'),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
             ],
           );
         },

@@ -37,6 +37,12 @@ class VisitRepository {
     });
   }
 
+  Future<void> updateAmountPaid(String visitId, double amount) async {
+    await _db.collection(FirestoreConstants.visits).doc(visitId).update({
+      'amountPaid': amount,
+    });
+  }
+
   Future<void> removeWaitingVisit(String visitId) async {
     await _db.collection(FirestoreConstants.visits).doc(visitId).delete();
   }
