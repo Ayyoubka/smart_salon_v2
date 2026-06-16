@@ -6,7 +6,7 @@ import '../../features/auth/presentation/guards/auth_guard.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/barber/presentation/screens/barber_home_screen.dart';
-import '../../features/admin/presentation/screens/admin_appointments_screen.dart';
+import '../../features/admin/presentation/screens/admin_dashboard_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -27,7 +27,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RouteConstants.adminHome,
-        builder: (context, state) => const AdminAppointmentsScreen(),
+        builder: (context, state) => const AdminDashboardScreen(),
       ),
     ],
   );

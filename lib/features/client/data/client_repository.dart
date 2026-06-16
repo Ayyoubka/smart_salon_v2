@@ -77,4 +77,16 @@ class ClientRepository {
         .map((doc) => ClientModel.fromMap(doc.id, doc.data()))
         .toList();
   }
+
+  Future<void> updateClient(
+    String clientId, {
+    required String fullName,
+    required String phone,
+  }) async {
+    phone = _normalizePhone(phone);
+    await _db
+        .collection(FirestoreConstants.clients)
+        .doc(clientId)
+        .update({'fullName': fullName, 'phone': phone});
+  }
 }

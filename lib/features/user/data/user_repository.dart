@@ -37,4 +37,26 @@ class UserRepository {
         .where((u) => u.isActive)
         .toList();
   }
+
+  Future<List<UserModel>> getAllBarbersBySalon({
+    required String salonId,
+  }) async {
+    final snap = await _db
+        .collection(FirestoreConstants.users)
+        .where('salonId', isEqualTo: salonId)
+        .where('role', isEqualTo: UserRole.barber.name)
+        .orderBy('fullName')
+        .get();
+
+    return snap.docs
+        .map((doc) => UserModel.fromMap(doc.data()))
+        .toList();
+  }
+
+  Future<void> setBarberActive(String uid, bool isActive) async {
+    await _db
+        .collection(FirestoreConstants.users)
+        .doc(uid)
+        .update({'isActive': isActive});
+  }
 }
