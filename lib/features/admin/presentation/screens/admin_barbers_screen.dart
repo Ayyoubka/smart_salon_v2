@@ -21,6 +21,11 @@ class AdminBarbersScreen extends ConsumerWidget {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add Barber',
+        onPressed: () => _showCreateDialog(context, ref),
+        child: const Icon(Icons.person_add),
+      ),
       body: barbersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -53,6 +58,18 @@ class AdminBarbersScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (_) => const _CreateBarberDialog(),
+    );
+    if (created == true) {
+      ref.invalidate(adminBarbersProvider);
+      ref.invalidate(salonBarbersProvider);
+      ref.invalidate(adminDashboardProvider);
+    }
   }
 
   Future<void> _handleToggle(
@@ -160,6 +177,108 @@ class _BarberTile extends StatelessWidget {
         value: barber.isActive,
         onChanged: (_) => onToggle(),
       ),
+    );
+  }
+}
+
+class _CreateBarberDialog extends ConsumerStatefulWidget {
+  const _CreateBarberDialog();
+
+  @override
+  ConsumerState<_CreateBarberDialog> createState() =>
+      _CreateBarberDialogState();
+}
+
+class _CreateBarberDialogState extends ConsumerState<_CreateBarberDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+
+    try {
+      final user = await ref.read(currentUserProvider.future);
+      if (user == null) throw Exception('Not authenticated');
+
+      await ref.read(userRepositoryProvider).createBarber(
+            salonId: user.salonId,
+            fullName: _nameController.text.trim(),
+            phone: _phoneController.text.trim(),
+          );
+
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New Barber'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Full Name'),
+              textCapitalization: TextCapitalization.words,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone (optional)',
+                hintText: '05XXXXXXXX',
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (v) {
+                final trimmed = v?.trim() ?? '';
+                if (trimmed.isEmpty) return null;
+                if (!RegExp(r'^05\d{8}$').hasMatch(trimmed)) {
+                  return 'Enter a valid phone (05XXXXXXXX)';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _submit,
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Create'),
+        ),
+      ],
     );
   }
 }

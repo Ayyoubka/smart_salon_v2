@@ -59,4 +59,22 @@ class UserRepository {
         .doc(uid)
         .update({'isActive': isActive});
   }
+
+  Future<UserModel> createBarber({
+    required String salonId,
+    required String fullName,
+    required String phone,
+  }) async {
+    final uid = _db.collection(FirestoreConstants.users).doc().id;
+    final user = UserModel(
+      uid: uid,
+      salonId: salonId,
+      role: UserRole.barber,
+      fullName: fullName,
+      phone: phone,
+      isActive: true,
+    );
+    await saveUser(user);
+    return user;
+  }
 }
