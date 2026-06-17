@@ -127,7 +127,10 @@ class _ShiftButton extends StatelessWidget {
           },
           child: const Text('End Shift'),
         ),
-      ShiftStatus.ended => const SizedBox.shrink(),
+      ShiftStatus.ended => FilledButton(
+          onPressed: () => ref.read(barberShiftProvider.notifier).startShift(),
+          child: const Text('Start Shift'),
+        ),
     };
   }
 }

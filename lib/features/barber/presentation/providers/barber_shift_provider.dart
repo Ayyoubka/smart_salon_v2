@@ -22,7 +22,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
   }
 
   Future<void> startShift() async {
-    if (state != ShiftStatus.idle) return;
+    if (state == ShiftStatus.active) return;
     state = ShiftStatus.active;
 
     try {
@@ -57,10 +57,14 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     final shift = await ref.read(currentShiftProvider.future);
     if (shift == null) return 'Shift data unavailable';
 
-    state = ShiftStatus.ended;
+    try {
+      await _createDeposit(shift, depositedAmount);
+      await ref.read(shiftRepositoryProvider).endShift(shift.id);
+    } catch (_) {
+      return 'Failed to end shift. Please try again.';
+    }
 
-    await _createDeposit(shift, depositedAmount);
-    await ref.read(shiftRepositoryProvider).endShift(shift.id);
+    state = ShiftStatus.ended;
     ref.invalidate(currentShiftProvider);
     ref.invalidate(depositsProvider);
 

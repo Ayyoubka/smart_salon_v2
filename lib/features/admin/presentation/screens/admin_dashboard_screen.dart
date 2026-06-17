@@ -8,6 +8,7 @@ import 'admin_appointments_screen.dart';
 import 'admin_barbers_screen.dart';
 import 'admin_clients_screen.dart';
 import 'admin_deposits_screen.dart';
+import 'admin_finance_screen.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
@@ -52,6 +53,15 @@ class AdminDashboardScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const AdminAppointmentsScreen(),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Finance',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AdminFinanceScreen(),
               ),
             ),
           ),
