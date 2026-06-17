@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/models/user_model.dart';
+import '../../../../shared/models/visit_model.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/admin_providers.dart';
 
@@ -10,6 +11,7 @@ class AdminBarbersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final barbersAsync = ref.watch(adminBarbersProvider);
+    final liveQueue = ref.watch(adminLiveQueueProvider).asData?.value ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -42,16 +44,23 @@ class AdminBarbersScreen extends ConsumerWidget {
             children: [
               if (active.isNotEmpty) ...[
                 _SectionHeader(label: 'Active (${active.length})'),
-                ...active.map((row) => _BarberTile(
-                      row: row,
-                      onToggle: () => _handleToggle(context, ref, row),
-                      onEdit: () => _showEditDialog(context, ref, row),
-                    )),
+                ...active.map((row) {
+                  final queueVisits = liveQueue
+                      .where((v) => v.barberUid == row.barber.uid)
+                      .toList();
+                  return _BarberTile(
+                    row: row,
+                    queueVisits: queueVisits,
+                    onToggle: () => _handleToggle(context, ref, row),
+                    onEdit: () => _showEditDialog(context, ref, row),
+                  );
+                }),
               ],
               if (inactive.isNotEmpty) ...[
                 _SectionHeader(label: 'Inactive (${inactive.length})'),
                 ...inactive.map((row) => _BarberTile(
                       row: row,
+                      queueVisits: const [],
                       onToggle: () => _handleToggle(context, ref, row),
                       onEdit: () => _showEditDialog(context, ref, row),
                     )),
@@ -152,11 +161,13 @@ class _SectionHeader extends StatelessWidget {
 
 class _BarberTile extends StatelessWidget {
   final BarberRowData row;
+  final List<VisitModel> queueVisits;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
 
   const _BarberTile({
     required this.row,
+    required this.queueVisits,
     required this.onToggle,
     required this.onEdit,
   });
@@ -181,26 +192,79 @@ class _BarberTile extends StatelessWidget {
       subtitle = 'No active shift  ·  Done: ${row.completedToday}';
     }
 
-    return ListTile(
-      onTap: onEdit,
-      leading: Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: dotColor,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          onTap: onEdit,
+          leading: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: dotColor,
+            ),
+          ),
+          title: Text(
+            barber.fullName,
+            style: barber.isActive
+                ? null
+                : TextStyle(color: theme.disabledColor),
+          ),
+          subtitle: Text(subtitle),
+          trailing: Switch(
+            value: barber.isActive,
+            onChanged: (_) => onToggle(),
+          ),
         ),
-      ),
-      title: Text(
-        barber.fullName,
-        style: barber.isActive
-            ? null
-            : TextStyle(color: theme.disabledColor),
-      ),
-      subtitle: Text(subtitle),
-      trailing: Switch(
-        value: barber.isActive,
-        onChanged: (_) => onToggle(),
+        if (row.hasActiveShift && queueVisits.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: queueVisits
+                  .map((v) => _QueueClientRow(visit: v))
+                  .toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _QueueClientRow extends StatelessWidget {
+  final VisitModel visit;
+
+  const _QueueClientRow({required this.visit});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isWaiting = visit.status == VisitStatus.waiting;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            isWaiting ? Icons.hourglass_top : Icons.content_cut,
+            size: 14,
+            color: theme.colorScheme.outline,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              visit.clientName.isNotEmpty ? visit.clientName : '—',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          Text(
+            isWaiting ? 'Waiting' : 'In Service',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.outline),
+          ),
+        ],
       ),
     );
   }

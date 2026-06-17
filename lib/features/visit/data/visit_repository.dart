@@ -78,6 +78,16 @@ class VisitRepository {
             .toList());
   }
 
+  Stream<List<VisitModel>> watchVisitsBySalon(String salonId) {
+    return _db
+        .collection(FirestoreConstants.visits)
+        .where('salonId', isEqualTo: salonId)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => VisitModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
   Future<List<VisitModel>> getCompletedVisitsByBarberInPeriod({
     required String barberUid,
     required DateTime start,

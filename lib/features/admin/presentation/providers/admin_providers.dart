@@ -17,6 +17,24 @@ final salonBarbersProvider = FutureProvider<List<UserModel>>((ref) async {
       .getBarbersBySalon(salonId: user.salonId);
 });
 
+final adminLiveQueueProvider = StreamProvider<List<VisitModel>>((ref) async* {
+  final user = await ref.watch(currentUserProvider.future);
+  if (user == null) {
+    yield [];
+    return;
+  }
+
+  yield* ref
+      .read(visitRepositoryProvider)
+      .watchVisitsBySalon(user.salonId)
+      .map((visits) => visits
+          .where((v) =>
+              v.status == VisitStatus.waiting ||
+              v.status == VisitStatus.inService)
+          .toList()
+        ..sort((a, b) => a.startedAt.compareTo(b.startedAt)));
+});
+
 final adminDepositsProvider = FutureProvider<List<DepositModel>>((ref) async {
   final user = await ref.watch(currentUserProvider.future);
   if (user == null) return [];
