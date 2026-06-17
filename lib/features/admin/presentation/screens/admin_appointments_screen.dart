@@ -679,6 +679,36 @@ class _AdminAppointmentTileState
     }
   }
 
+  Future<void> _restoreToScheduled() async {
+    setState(() => _loading = true);
+    try {
+      final appt = widget.appointment;
+      await ref
+          .read(appointmentRepositoryProvider)
+          .restoreToScheduled(appt.id);
+      if (appt.status == AppointmentStatus.cancelled) {
+        final apptDate = DateTime(
+          appt.scheduledAt.year,
+          appt.scheduledAt.month,
+          appt.scheduledAt.day,
+        );
+        ref.invalidate(availableSlotsProvider((
+          barberUid: appt.barberUid,
+          date: apptDate,
+        )));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Failed to restore. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _reschedule() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -832,14 +862,14 @@ class _AdminAppointmentTileState
         ),
         title: Text(appt.clientName),
         subtitle: Text(appt.barberName),
-        trailing: appt.status == AppointmentStatus.scheduled
-            ? _loading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : PopupMenuButton<String>(
+        trailing: _loading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : appt.status == AppointmentStatus.scheduled
+                ? PopupMenuButton<String>(
                     onSelected: (value) {
                       if (value == 'arrived') _markArrived();
                       if (value == 'noShow') _markNoShow();
@@ -870,10 +900,27 @@ class _AdminAppointmentTileState
                       ),
                     ],
                   )
-            : Text(
-                _formatStatus(appt.status),
-                style: theme.textTheme.bodySmall,
-              ),
+                : appt.status == AppointmentStatus.noShow ||
+                        appt.status == AppointmentStatus.cancelled
+                    ? PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'restore') _restoreToScheduled();
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'restore',
+                            child: Text('Restore to Scheduled'),
+                          ),
+                        ],
+                        child: Text(
+                          _formatStatus(appt.status),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      )
+                    : Text(
+                        _formatStatus(appt.status),
+                        style: theme.textTheme.bodySmall,
+                      ),
       ),
     );
   }
