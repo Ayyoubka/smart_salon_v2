@@ -861,7 +861,20 @@ class _AdminAppointmentTileState
           style: theme.textTheme.titleMedium,
         ),
         title: Text(appt.clientName),
-        subtitle: Text(appt.barberName),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(appt.barberName),
+            if (appt.notes != null && appt.notes!.isNotEmpty)
+              Text(
+                appt.notes!,
+                style: theme.textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
         trailing: _loading
             ? const SizedBox(
                 width: 16,

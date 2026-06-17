@@ -30,6 +30,7 @@ class _CreateAppointmentScreenState
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _nameController = TextEditingController();
+  final _notesController = TextEditingController();
 
   DateTime? _selectedDate;
   DateTime? _selectedSlot;
@@ -40,6 +41,7 @@ class _CreateAppointmentScreenState
   void dispose() {
     _phoneController.dispose();
     _nameController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -121,6 +123,7 @@ class _CreateAppointmentScreenState
       final effectiveBarberUid = widget.targetBarberUid ?? user.uid;
       final effectiveBarberName = widget.targetBarberName ?? user.fullName;
 
+      final notes = _notesController.text.trim();
       await ref.read(appointmentRepositoryProvider).createAppointment(
             salonId: user.salonId,
             barberUid: effectiveBarberUid,
@@ -131,6 +134,7 @@ class _CreateAppointmentScreenState
             scheduledAt: _selectedSlot!,
             durationMinutes: AppointmentConstants.slotDurationMinutes,
             createdByUid: user.uid,
+            notes: notes.isNotEmpty ? notes : null,
           );
 
       ref.invalidate(availableSlotsProvider((
@@ -248,6 +252,15 @@ class _CreateAppointmentScreenState
                 readOnly: _foundClient != null,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+
+              // ── Notes ─────────────────────────────────────────────
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: _notesController,
+                decoration: const InputDecoration(labelText: 'Notes (optional)'),
+                maxLines: 3,
+                maxLength: 200,
               ),
 
               // ── Save ──────────────────────────────────────────────
