@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../shared/models/user_model.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
 import '../providers/admin_providers.dart';
 
@@ -44,6 +45,7 @@ class AdminBarbersScreen extends ConsumerWidget {
                 ...active.map((row) => _BarberTile(
                       row: row,
                       onToggle: () => _handleToggle(context, ref, row),
+                      onEdit: () => _showEditDialog(context, ref, row),
                     )),
               ],
               if (inactive.isNotEmpty) ...[
@@ -51,6 +53,7 @@ class AdminBarbersScreen extends ConsumerWidget {
                 ...inactive.map((row) => _BarberTile(
                       row: row,
                       onToggle: () => _handleToggle(context, ref, row),
+                      onEdit: () => _showEditDialog(context, ref, row),
                     )),
               ],
             ],
@@ -58,6 +61,22 @@ class AdminBarbersScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _showEditDialog(
+    BuildContext context,
+    WidgetRef ref,
+    BarberRowData row,
+  ) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditBarberDialog(barber: row.barber),
+    );
+    if (saved == true) {
+      ref.invalidate(adminBarbersProvider);
+      ref.invalidate(salonBarbersProvider);
+      ref.invalidate(adminDashboardProvider);
+    }
   }
 
   Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
@@ -134,8 +153,13 @@ class _SectionHeader extends StatelessWidget {
 class _BarberTile extends StatelessWidget {
   final BarberRowData row;
   final VoidCallback onToggle;
+  final VoidCallback onEdit;
 
-  const _BarberTile({required this.row, required this.onToggle});
+  const _BarberTile({
+    required this.row,
+    required this.onToggle,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +182,7 @@ class _BarberTile extends StatelessWidget {
     }
 
     return ListTile(
+      onTap: onEdit,
       leading: Container(
         width: 12,
         height: 12,
@@ -177,6 +202,125 @@ class _BarberTile extends StatelessWidget {
         value: barber.isActive,
         onChanged: (_) => onToggle(),
       ),
+    );
+  }
+}
+
+class _EditBarberDialog extends ConsumerStatefulWidget {
+  final UserModel barber;
+
+  const _EditBarberDialog({required this.barber});
+
+  @override
+  ConsumerState<_EditBarberDialog> createState() => _EditBarberDialogState();
+}
+
+class _EditBarberDialogState extends ConsumerState<_EditBarberDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.barber.fullName);
+    _phoneController = TextEditingController(text: widget.barber.phone);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final newName = _nameController.text.trim();
+    final newPhone = _phoneController.text.trim();
+
+    if (newName == widget.barber.fullName && newPhone == widget.barber.phone) {
+      Navigator.of(context).pop(false);
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final updated = UserModel(
+        uid: widget.barber.uid,
+        salonId: widget.barber.salonId,
+        role: widget.barber.role,
+        isActive: widget.barber.isActive,
+        fullName: newName,
+        phone: newPhone,
+      );
+      await ref.read(userRepositoryProvider).saveUser(updated);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Barber'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Full Name'),
+              textCapitalization: TextCapitalization.words,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone (optional)',
+                hintText: '05XXXXXXXX',
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (v) {
+                final trimmed = v?.trim() ?? '';
+                if (trimmed.isEmpty) return null;
+                if (!RegExp(r'^05\d{8}$').hasMatch(trimmed)) {
+                  return 'Enter a valid phone (05XXXXXXXX)';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _submit,
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }
