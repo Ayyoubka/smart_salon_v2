@@ -61,30 +61,40 @@ class _RescheduleAppointmentScreenState
 
     setState(() => _saving = true);
 
-    final appt = widget.appointment;
-    final oldDate = DateTime(
-      appt.scheduledAt.year,
-      appt.scheduledAt.month,
-      appt.scheduledAt.day,
-    );
+    try {
+      final appt = widget.appointment;
+      final oldDate = DateTime(
+        appt.scheduledAt.year,
+        appt.scheduledAt.month,
+        appt.scheduledAt.day,
+      );
 
-    await ref
-        .read(appointmentRepositoryProvider)
-        .rescheduleAppointment(
-          appointmentId: appt.id,
-          newScheduledAt: _selectedSlot!,
+      await ref
+          .read(appointmentRepositoryProvider)
+          .rescheduleAppointment(
+            appointmentId: appt.id,
+            newScheduledAt: _selectedSlot!,
+          );
+
+      ref.invalidate(availableSlotsProvider((
+        barberUid: appt.barberUid,
+        date: oldDate,
+      )));
+      ref.invalidate(availableSlotsProvider((
+        barberUid: appt.barberUid,
+        date: _selectedDate,
+      )));
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to reschedule. Please try again.')),
         );
-
-    ref.invalidate(availableSlotsProvider((
-      barberUid: appt.barberUid,
-      date: oldDate,
-    )));
-    ref.invalidate(availableSlotsProvider((
-      barberUid: appt.barberUid,
-      date: _selectedDate,
-    )));
-
-    if (mounted) Navigator.of(context).pop();
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   String _formatDate(DateTime date) {

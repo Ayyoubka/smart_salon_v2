@@ -85,59 +85,69 @@ class _CreateAppointmentScreenState
 
     setState(() => _loading = true);
 
-    final phone = _phoneController.text.trim();
-    final name = _nameController.text.trim();
-    final String clientId;
-    final String clientName;
-    final String clientPhone;
+    try {
+      final phone = _phoneController.text.trim();
+      final name = _nameController.text.trim();
+      final String clientId;
+      final String clientName;
+      final String clientPhone;
 
-    if (_foundClient != null) {
-      clientId = _foundClient!.id;
-      clientName = _foundClient!.fullName;
-      clientPhone = _foundClient!.phone;
-    } else if (phone.isNotEmpty) {
-      final existing = await ref
-          .read(clientRepositoryProvider)
-          .getClientByPhone(salonId: user.salonId, phone: phone);
-      if (existing != null) {
-        clientId = existing.id;
-        clientName = existing.fullName;
-        clientPhone = existing.phone;
-      } else {
-        final created = await ref
+      if (_foundClient != null) {
+        clientId = _foundClient!.id;
+        clientName = _foundClient!.fullName;
+        clientPhone = _foundClient!.phone;
+      } else if (phone.isNotEmpty) {
+        final existing = await ref
             .read(clientRepositoryProvider)
-            .createClient(salonId: user.salonId, fullName: name, phone: phone);
-        clientId = created.id;
-        clientName = created.fullName;
-        clientPhone = created.phone;
+            .getClientByPhone(salonId: user.salonId, phone: phone);
+        if (existing != null) {
+          clientId = existing.id;
+          clientName = existing.fullName;
+          clientPhone = existing.phone;
+        } else {
+          final created = await ref
+              .read(clientRepositoryProvider)
+              .createClient(salonId: user.salonId, fullName: name, phone: phone);
+          clientId = created.id;
+          clientName = created.fullName;
+          clientPhone = created.phone;
+        }
+      } else {
+        clientId = '';
+        clientName = name;
+        clientPhone = '';
       }
-    } else {
-      clientId = '';
-      clientName = name;
-      clientPhone = '';
-    }
 
-    final effectiveBarberUid = widget.targetBarberUid ?? user.uid;
-    final effectiveBarberName = widget.targetBarberName ?? user.fullName;
+      final effectiveBarberUid = widget.targetBarberUid ?? user.uid;
+      final effectiveBarberName = widget.targetBarberName ?? user.fullName;
 
-    await ref.read(appointmentRepositoryProvider).createAppointment(
-          salonId: user.salonId,
-          barberUid: effectiveBarberUid,
-          barberName: effectiveBarberName,
-          clientId: clientId,
-          clientName: clientName,
-          clientPhone: clientPhone,
-          scheduledAt: _selectedSlot!,
-          durationMinutes: AppointmentConstants.slotDurationMinutes,
-          createdByUid: user.uid,
+      await ref.read(appointmentRepositoryProvider).createAppointment(
+            salonId: user.salonId,
+            barberUid: effectiveBarberUid,
+            barberName: effectiveBarberName,
+            clientId: clientId,
+            clientName: clientName,
+            clientPhone: clientPhone,
+            scheduledAt: _selectedSlot!,
+            durationMinutes: AppointmentConstants.slotDurationMinutes,
+            createdByUid: user.uid,
+          );
+
+      ref.invalidate(availableSlotsProvider((
+        barberUid: effectiveBarberUid,
+        date: _selectedDate!,
+      )));
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to book appointment. Please try again.')),
         );
-
-    ref.invalidate(availableSlotsProvider((
-      barberUid: effectiveBarberUid,
-      date: _selectedDate!,
-    )));
-
-    if (mounted) Navigator.of(context).pop();
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   String _formatDate(DateTime date) {

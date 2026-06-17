@@ -231,12 +231,22 @@ class _AddClientDialogState extends State<_AddClientDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    await widget.onSave(
-      _nameController.text.trim(),
-      _phoneController.text.trim(),
-      _foundClient,
-    );
-    if (mounted) Navigator.of(context).pop();
+    try {
+      await widget.onSave(
+        _nameController.text.trim(),
+        _phoneController.text.trim(),
+        _foundClient,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to add client. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

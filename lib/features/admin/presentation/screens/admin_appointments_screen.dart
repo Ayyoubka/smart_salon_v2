@@ -581,76 +581,102 @@ class _AdminAppointmentTileState
 
   Future<void> _markArrived() async {
     setState(() => _loading = true);
-    final appt = widget.appointment;
+    try {
+      final appt = widget.appointment;
 
-    final shift = await ref.read(shiftRepositoryProvider).getActiveShift(
-          salonId: appt.salonId,
-          barberUid: appt.barberUid,
-        );
+      final shift = await ref.read(shiftRepositoryProvider).getActiveShift(
+            salonId: appt.salonId,
+            barberUid: appt.barberUid,
+          );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (shift == null) {
-      setState(() => _loading = false);
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Barber Not Active'),
-          content: const Text(
-            'This barber has not started a shift yet.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+      if (shift == null) {
+        setState(() => _loading = false);
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Barber Not Active'),
+            content: const Text(
+              'This barber has not started a shift yet.',
             ),
-          ],
-        ),
-      );
-      return;
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
+            salonId: appt.salonId,
+            barberUid: appt.barberUid,
+            clientId: appt.clientId,
+            clientName: appt.clientName,
+            phone: appt.clientPhone,
+            shiftId: shift.id,
+          );
+
+      await ref.read(appointmentRepositoryProvider).markArrived(
+            appointmentId: appt.id,
+            visitId: visit.id,
+          );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to mark arrived. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
-          salonId: appt.salonId,
-          barberUid: appt.barberUid,
-          clientId: appt.clientId,
-          clientName: appt.clientName,
-          phone: appt.clientPhone,
-          shiftId: shift.id,
-        );
-
-    await ref.read(appointmentRepositoryProvider).markArrived(
-          appointmentId: appt.id,
-          visitId: visit.id,
-        );
-
-    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
-    await ref
-        .read(appointmentRepositoryProvider)
-        .markNoShow(widget.appointment.id);
-    if (mounted) setState(() => _loading = false);
+    try {
+      await ref
+          .read(appointmentRepositoryProvider)
+          .markNoShow(widget.appointment.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _cancelAppointment() async {
     setState(() => _loading = true);
-    final appt = widget.appointment;
-    await ref
-        .read(appointmentRepositoryProvider)
-        .cancelAppointment(appt.id);
-    final apptDate = DateTime(
-      appt.scheduledAt.year,
-      appt.scheduledAt.month,
-      appt.scheduledAt.day,
-    );
-    ref.invalidate(availableSlotsProvider((
-      barberUid: appt.barberUid,
-      date: apptDate,
-    )));
-    if (mounted) setState(() => _loading = false);
+    try {
+      final appt = widget.appointment;
+      await ref
+          .read(appointmentRepositoryProvider)
+          .cancelAppointment(appt.id);
+      final apptDate = DateTime(
+        appt.scheduledAt.year,
+        appt.scheduledAt.month,
+        appt.scheduledAt.day,
+      );
+      ref.invalidate(availableSlotsProvider((
+        barberUid: appt.barberUid,
+        date: apptDate,
+      )));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to cancel. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _reschedule() async {
@@ -699,78 +725,86 @@ class _AdminAppointmentTileState
 
     setState(() => _loading = true);
 
-    // Conflict check
-    final targetAppointments = await ref
-        .read(appointmentRepositoryProvider)
-        .getAppointmentsForBarberOnDate(
-          barberUid: selected.uid,
-          date: appt.scheduledAt,
-        );
+    try {
+      // Conflict check
+      final targetAppointments = await ref
+          .read(appointmentRepositoryProvider)
+          .getAppointmentsForBarberOnDate(
+            barberUid: selected.uid,
+            date: appt.scheduledAt,
+          );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final apptEnd =
-        appt.scheduledAt.add(Duration(minutes: appt.durationMinutes));
+      final apptEnd =
+          appt.scheduledAt.add(Duration(minutes: appt.durationMinutes));
 
-    AppointmentModel? conflict;
-    for (final a in targetAppointments) {
-      if (a.id == appt.id) continue;
-      if (a.status == AppointmentStatus.cancelled) continue;
-      final aEnd = a.scheduledAt.add(Duration(minutes: a.durationMinutes));
-      if (appt.scheduledAt.isBefore(aEnd) && apptEnd.isAfter(a.scheduledAt)) {
-        conflict = a;
-        break;
+      AppointmentModel? conflict;
+      for (final a in targetAppointments) {
+        if (a.id == appt.id) continue;
+        if (a.status == AppointmentStatus.cancelled) continue;
+        final aEnd = a.scheduledAt.add(Duration(minutes: a.durationMinutes));
+        if (appt.scheduledAt.isBefore(aEnd) && apptEnd.isAfter(a.scheduledAt)) {
+          conflict = a;
+          break;
+        }
       }
-    }
 
-    if (conflict != null) {
-      setState(() => _loading = false);
-      final h = conflict.scheduledAt.hour.toString().padLeft(2, '0');
-      final m = conflict.scheduledAt.minute.toString().padLeft(2, '0');
-      final clientInfo = conflict.clientName.isNotEmpty
-          ? ' with ${conflict.clientName}'
-          : '';
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Cannot Reassign'),
-          content: Text(
-            '${selected.fullName} already has an appointment '
-            'at $h:$m$clientInfo.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+      if (conflict != null) {
+        setState(() => _loading = false);
+        final h = conflict.scheduledAt.hour.toString().padLeft(2, '0');
+        final m = conflict.scheduledAt.minute.toString().padLeft(2, '0');
+        final clientInfo = conflict.clientName.isNotEmpty
+            ? ' with ${conflict.clientName}'
+            : '';
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Cannot Reassign'),
+            content: Text(
+              '${selected.fullName} already has an appointment '
+              'at $h:$m$clientInfo.',
             ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // No conflict — proceed
-    await ref.read(appointmentRepositoryProvider).reassignAppointment(
-          appointmentId: appt.id,
-          newBarberUid: selected.uid,
-          newBarberName: selected.fullName,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
+        return;
+      }
 
-    final apptDate = DateTime(
-      appt.scheduledAt.year,
-      appt.scheduledAt.month,
-      appt.scheduledAt.day,
-    );
-    ref.invalidate(availableSlotsProvider((
-      barberUid: appt.barberUid,
-      date: apptDate,
-    )));
-    ref.invalidate(availableSlotsProvider((
-      barberUid: selected.uid,
-      date: apptDate,
-    )));
+      // No conflict — proceed
+      await ref.read(appointmentRepositoryProvider).reassignAppointment(
+            appointmentId: appt.id,
+            newBarberUid: selected.uid,
+            newBarberName: selected.fullName,
+          );
 
-    if (mounted) setState(() => _loading = false);
+      final apptDate = DateTime(
+        appt.scheduledAt.year,
+        appt.scheduledAt.month,
+        appt.scheduledAt.day,
+      );
+      ref.invalidate(availableSlotsProvider((
+        barberUid: appt.barberUid,
+        date: apptDate,
+      )));
+      ref.invalidate(availableSlotsProvider((
+        barberUid: selected.uid,
+        date: apptDate,
+      )));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to reassign. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -894,13 +928,23 @@ class _WalkInClientDialogState extends State<_WalkInClientDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    final phone = _phoneController.text.trim();
-    await widget.onSave(
-      _nameController.text.trim(),
-      phone == '05' ? '' : phone,
-      _foundClient,
-    );
-    if (mounted) Navigator.of(context).pop();
+    try {
+      final phone = _phoneController.text.trim();
+      await widget.onSave(
+        _nameController.text.trim(),
+        phone == '05' ? '' : phone,
+        _foundClient,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to add client. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
