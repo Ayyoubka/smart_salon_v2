@@ -5,6 +5,7 @@ import '../../../../shared/models/user_model.dart';
 import '../../../appointment/presentation/providers/appointments_provider.dart';
 import '../../../appointment/presentation/providers/available_slots_provider.dart';
 import '../../../appointment/presentation/screens/create_appointment_screen.dart';
+import '../../../appointment/presentation/screens/edit_appointment_screen.dart';
 import '../../../appointment/presentation/screens/reschedule_appointment_screen.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
@@ -709,6 +710,17 @@ class _AdminAppointmentTileState
     }
   }
 
+  Future<void> _edit() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EditAppointmentScreen(
+          appointment: widget.appointment,
+          barbers: widget.barbers,
+        ),
+      ),
+    );
+  }
+
   Future<void> _reschedule() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -889,6 +901,7 @@ class _AdminAppointmentTileState
                       if (value == 'cancel') _cancelAppointment();
                       if (value == 'reschedule') _reschedule();
                       if (value == 'reassign') _reassign();
+                      if (value == 'edit') _edit();
                     },
                     itemBuilder: (_) => const [
                       PopupMenuItem(
@@ -910,6 +923,10 @@ class _AdminAppointmentTileState
                       PopupMenuItem(
                         value: 'reassign',
                         child: Text('Reassign'),
+                      ),
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit'),
                       ),
                     ],
                   )

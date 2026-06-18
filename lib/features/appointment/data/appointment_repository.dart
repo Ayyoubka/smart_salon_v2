@@ -130,6 +130,28 @@ class AppointmentRepository {
         .update({'status': AppointmentStatus.scheduled.name});
   }
 
+  Future<void> updateAppointment({
+    required String appointmentId,
+    required String clientName,
+    required String clientPhone,
+    required String? notes,
+    required DateTime scheduledAt,
+    required String barberUid,
+    required String barberName,
+  }) async {
+    await _db
+        .collection(FirestoreConstants.appointments)
+        .doc(appointmentId)
+        .update({
+      'clientName': clientName,
+      'clientPhone': clientPhone,
+      'notes': notes,
+      'scheduledAt': Timestamp.fromDate(scheduledAt),
+      'barberUid': barberUid,
+      'barberName': barberName,
+    });
+  }
+
   Future<void> rescheduleAppointment({
     required String appointmentId,
     required DateTime newScheduledAt,
