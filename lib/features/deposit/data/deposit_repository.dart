@@ -33,6 +33,16 @@ class DepositRepository {
     return model;
   }
 
+  Future<DepositModel?> getDepositByShift(String shiftId) async {
+    final snap = await _db
+        .collection(FirestoreConstants.deposits)
+        .where('shiftId', isEqualTo: shiftId)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    return DepositModel.fromMap(snap.docs.first.id, snap.docs.first.data());
+  }
+
   Future<List<DepositModel>> getDepositsByBarber({
     required String salonId,
     required String barberUid,

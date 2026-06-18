@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../../shared/models/visit_model.dart';
+import '../../../deposit/presentation/providers/deposits_provider.dart';
+import '../../../shift/presentation/providers/current_shift_provider.dart';
 import '../../../user/presentation/providers/current_user_provider.dart';
+import '../../../visit/presentation/providers/visits_provider.dart';
 import '../providers/admin_providers.dart';
 
 class AdminBarbersScreen extends ConsumerWidget {
@@ -53,6 +56,9 @@ class AdminBarbersScreen extends ConsumerWidget {
                     queueVisits: queueVisits,
                     onToggle: () => _handleToggle(context, ref, row),
                     onEdit: () => _showEditDialog(context, ref, row),
+                    onCloseShift: row.hasActiveShift
+                        ? () => _handleCloseShift(context, ref, row)
+                        : null,
                   );
                 }),
               ],
@@ -97,6 +103,111 @@ class AdminBarbersScreen extends ConsumerWidget {
       ref.invalidate(adminBarbersProvider);
       ref.invalidate(salonBarbersProvider);
       ref.invalidate(adminDashboardProvider);
+    }
+  }
+
+  Future<void> _handleCloseShift(
+    BuildContext context,
+    WidgetRef ref,
+    BarberRowData row,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Close Shift'),
+        content: Text(
+          'Force-close ${row.barber.fullName}\'s active shift?\n\n'
+          'Waiting and in-service clients will not be affected. '
+          'Only completed visits will be counted in the deposit.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Close Shift'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final user = await ref.read(currentUserProvider.future);
+      if (user == null) return;
+
+      final shift = await ref.read(shiftRepositoryProvider).getActiveShift(
+            salonId: user.salonId,
+            barberUid: row.barber.uid,
+          );
+      if (shift == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Shift already ended.')),
+          );
+        }
+        return;
+      }
+
+      final existingDeposit = await ref
+          .read(depositRepositoryProvider)
+          .getDepositByShift(shift.id);
+
+      if (existingDeposit == null) {
+        final visits = await ref
+            .read(visitRepositoryProvider)
+            .getVisitsByShift(shift.id);
+        final completed =
+            visits.where((v) => v.status == VisitStatus.completed).toList();
+
+        if (completed.isNotEmpty) {
+          final expectedAmount =
+              completed.fold(0.0, (sum, v) => sum + v.amountPaid);
+          if (!context.mounted) return;
+          final depositedAmount = await showDialog<double>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) =>
+                _AdminCashDepositDialog(expectedAmount: expectedAmount),
+          );
+          if (depositedAmount == null) return;
+
+          await ref.read(depositRepositoryProvider).createDeposit(
+                salonId: shift.salonId,
+                barberUid: shift.barberUid,
+                barberName: shift.barberName,
+                shiftId: shift.id,
+                businessDate: shift.shiftBusinessDate,
+                expectedAmount: expectedAmount,
+                depositedAmount: depositedAmount,
+                clientsCount: completed.length,
+              );
+        }
+      }
+
+      await ref.read(shiftRepositoryProvider).endShift(shift.id);
+
+      ref.invalidate(adminBarbersProvider);
+      ref.invalidate(salonBarbersProvider);
+      ref.invalidate(adminDashboardProvider);
+      ref.invalidate(adminLiveQueueProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('${row.barber.fullName}\'s shift has been closed.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Failed to close shift. Please try again.')),
+        );
+      }
     }
   }
 
@@ -164,12 +275,14 @@ class _BarberTile extends StatelessWidget {
   final List<VisitModel> queueVisits;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
+  final VoidCallback? onCloseShift;
 
   const _BarberTile({
     required this.row,
     required this.queueVisits,
     required this.onToggle,
     required this.onEdit,
+    this.onCloseShift,
   });
 
   @override
@@ -213,9 +326,21 @@ class _BarberTile extends StatelessWidget {
                 : TextStyle(color: theme.disabledColor),
           ),
           subtitle: Text(subtitle),
-          trailing: Switch(
-            value: barber.isActive,
-            onChanged: (_) => onToggle(),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onCloseShift != null)
+                IconButton(
+                  icon: Icon(Icons.stop_circle_outlined,
+                      color: Colors.red.shade300),
+                  tooltip: 'Close Shift',
+                  onPressed: onCloseShift,
+                ),
+              Switch(
+                value: barber.isActive,
+                onChanged: (_) => onToggle(),
+              ),
+            ],
           ),
         ),
         if (row.hasActiveShift && queueVisits.isNotEmpty)
@@ -485,6 +610,69 @@ class _CreateBarberDialogState extends ConsumerState<_CreateBarberDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdminCashDepositDialog extends StatefulWidget {
+  final double expectedAmount;
+
+  const _AdminCashDepositDialog({required this.expectedAmount});
+
+  @override
+  State<_AdminCashDepositDialog> createState() =>
+      _AdminCashDepositDialogState();
+}
+
+class _AdminCashDepositDialogState extends State<_AdminCashDepositDialog> {
+  final _controller = TextEditingController();
+  bool _valid = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    final parsed = double.tryParse(value);
+    setState(() => _valid = parsed != null && parsed >= 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cash Deposit'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Expected: ₪${widget.expectedAmount.toStringAsFixed(0)}'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'How much cash is being deposited?',
+            ),
+            autofocus: true,
+            onChanged: _onChanged,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _valid
+              ? () => Navigator.of(context).pop(double.parse(_controller.text))
+              : null,
+          child: const Text('Confirm'),
         ),
       ],
     );
