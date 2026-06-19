@@ -12,6 +12,10 @@ class DepositModel {
   final double takenAmount;
   final int clientsCount;
   final DateTime createdAt;
+  final String? barberNote;
+  final double? adminApprovedAmount;
+  final String? adminNote;
+  final DateTime? reviewedAt;
 
   const DepositModel({
     required this.id,
@@ -25,6 +29,10 @@ class DepositModel {
     required this.takenAmount,
     required this.clientsCount,
     required this.createdAt,
+    this.barberNote,
+    this.adminApprovedAmount,
+    this.adminNote,
+    this.reviewedAt,
   });
 
   factory DepositModel.fromMap(String id, Map<String, dynamic> map) =>
@@ -40,6 +48,12 @@ class DepositModel {
         takenAmount: (map['takenAmount'] as num).toDouble(),
         clientsCount: map['clientsCount'] as int,
         createdAt: (map['createdAt'] as Timestamp).toDate(),
+        barberNote: map['barberNote'] as String?,
+        adminApprovedAmount:
+            (map['adminApprovedAmount'] as num?)?.toDouble(),
+        adminNote: map['adminNote'] as String?,
+        reviewedAt:
+            (map['reviewedAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -53,5 +67,10 @@ class DepositModel {
         'takenAmount': takenAmount,
         'clientsCount': clientsCount,
         'createdAt': Timestamp.fromDate(createdAt),
+        'barberNote': barberNote,
+        'adminApprovedAmount': adminApprovedAmount,
+        'adminNote': adminNote,
+        'reviewedAt':
+            reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
       };
 }

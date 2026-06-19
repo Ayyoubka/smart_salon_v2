@@ -41,7 +41,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
   }
 
   /// Returns null on success, or an error message if the shift cannot end.
-  Future<String?> endShift(double depositedAmount) async {
+  Future<String?> endShift(double depositedAmount, {String? barberNote}) async {
     if (state != ShiftStatus.active) return null;
 
     final visits = await ref.read(visitsProvider.future);
@@ -58,7 +58,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     if (shift == null) return 'Shift data unavailable';
 
     try {
-      await _createDeposit(shift, depositedAmount);
+      await _createDeposit(shift, depositedAmount, barberNote: barberNote);
       await ref.read(shiftRepositoryProvider).endShift(shift.id);
     } catch (_) {
       return 'Failed to end shift. Please try again.';
@@ -71,7 +71,11 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
     return null;
   }
 
-  Future<void> _createDeposit(ShiftModel shift, double depositedAmount) async {
+  Future<void> _createDeposit(
+    ShiftModel shift,
+    double depositedAmount, {
+    String? barberNote,
+  }) async {
     final visits = await ref.read(visitRepositoryProvider).getVisitsByShift(shift.id);
     final completed = visits.where((v) => v.status == VisitStatus.completed).toList();
     if (completed.isEmpty) return;
@@ -86,6 +90,7 @@ class BarberShiftNotifier extends Notifier<ShiftStatus> {
           expectedAmount: expectedAmount,
           depositedAmount: depositedAmount,
           clientsCount: completed.length,
+          barberNote: barberNote,
         );
   }
 }

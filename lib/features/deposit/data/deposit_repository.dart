@@ -14,6 +14,7 @@ class DepositRepository {
     required double expectedAmount,
     required double depositedAmount,
     required int clientsCount,
+    String? barberNote,
   }) async {
     final ref = _db.collection(FirestoreConstants.deposits).doc();
     final model = DepositModel(
@@ -28,9 +29,25 @@ class DepositRepository {
       takenAmount: 0,
       clientsCount: clientsCount,
       createdAt: DateTime.now(),
+      barberNote: barberNote,
     );
     await ref.set(model.toMap());
     return model;
+  }
+
+  Future<void> reviewDeposit({
+    required String depositId,
+    required double adminApprovedAmount,
+    String? adminNote,
+  }) async {
+    await _db
+        .collection(FirestoreConstants.deposits)
+        .doc(depositId)
+        .update({
+      'adminApprovedAmount': adminApprovedAmount,
+      'adminNote': adminNote,
+      'reviewedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<DepositModel?> getDepositByShift(String shiftId) async {

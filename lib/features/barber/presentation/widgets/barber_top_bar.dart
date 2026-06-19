@@ -99,26 +99,29 @@ class _ShiftButton extends StatelessWidget {
                 .toList();
 
             double depositedAmount = 0;
+            String? barberNote;
             if (completed.isNotEmpty) {
               final expectedAmount = completed.fold(
                 0.0,
                 (sum, v) => sum + v.amountPaid,
               );
               if (!context.mounted) return;
-              final amount = await showDialog<double>(
+              final result = await showDialog<
+                  ({double depositedAmount, String? barberNote})>(
                 context: context,
                 barrierDismissible: false,
                 builder: (ctx) =>
                     _CashDepositDialog(expectedAmount: expectedAmount),
               );
-              if (amount == null) return;
-              depositedAmount = amount;
+              if (result == null) return;
+              depositedAmount = result.depositedAmount;
+              barberNote = result.barberNote;
             }
 
             if (!context.mounted) return;
             final error = await ref
                 .read(barberShiftProvider.notifier)
-                .endShift(depositedAmount);
+                .endShift(depositedAmount, barberNote: barberNote);
             if (error != null && context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(error)),
@@ -145,18 +148,28 @@ class _CashDepositDialog extends StatefulWidget {
 }
 
 class _CashDepositDialogState extends State<_CashDepositDialog> {
-  final _controller = TextEditingController();
+  final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
   bool _valid = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
-  void _onChanged(String value) {
+  void _onAmountChanged(String value) {
     final parsed = double.tryParse(value);
     setState(() => _valid = parsed != null && parsed >= 0);
+  }
+
+  void _confirm() {
+    final note = _noteController.text.trim();
+    Navigator.of(context).pop((
+      depositedAmount: double.parse(_amountController.text),
+      barberNote: note.isNotEmpty ? note : null,
+    ));
   }
 
   @override
@@ -170,14 +183,23 @@ class _CashDepositDialogState extends State<_CashDepositDialog> {
           Text('Expected: ₪${widget.expectedAmount.toStringAsFixed(0)}'),
           const SizedBox(height: 12),
           TextField(
-            controller: _controller,
+            controller: _amountController,
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'How much cash are you depositing?',
             ),
             autofocus: true,
-            onChanged: _onChanged,
+            onChanged: _onAmountChanged,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _noteController,
+            decoration: const InputDecoration(
+              labelText: 'Note (optional)',
+            ),
+            maxLines: 2,
+            maxLength: 200,
           ),
         ],
       ),
@@ -187,9 +209,7 @@ class _CashDepositDialogState extends State<_CashDepositDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _valid
-              ? () => Navigator.of(context).pop(double.parse(_controller.text))
-              : null,
+          onPressed: _valid ? _confirm : null,
           child: const Text('Confirm'),
         ),
       ],
