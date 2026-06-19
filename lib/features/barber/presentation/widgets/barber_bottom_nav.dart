@@ -23,7 +23,11 @@ class BarberBottomNav extends ConsumerWidget {
       onDestinationSelected: (index) =>
           ref.read(barberNavigationProvider.notifier).setTab(index),
       destinations: [
-        const NavigationDestination(icon: Icon(Icons.people_outline), label: 'Waiting'),
+        const NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Home',
+        ),
         const NavigationDestination(icon: Icon(Icons.content_cut), label: 'In Service'),
         const NavigationDestination(icon: Icon(Icons.check_circle_outline), label: 'Completed'),
         const NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),

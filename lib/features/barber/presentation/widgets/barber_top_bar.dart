@@ -26,6 +26,11 @@ class BarberTopBar extends ConsumerWidget implements PreferredSizeWidget {
         _ShiftButton(shift: shift, ref: ref),
         const SizedBox(width: 4),
         IconButton(
+          icon: const Icon(Icons.notifications_none),
+          tooltip: 'Notifications',
+          onPressed: () {},
+        ),
+        IconButton(
           icon: const Icon(Icons.logout),
           tooltip: 'Logout',
           onPressed: () => ref.read(authProvider.notifier).signOut(),
