@@ -4,8 +4,6 @@ import '../../../../features/appointment/presentation/providers/appointments_pro
 import '../../../../features/appointment/presentation/providers/available_slots_provider.dart';
 import '../../../../features/appointment/presentation/screens/create_appointment_screen.dart';
 import '../../../../features/appointment/presentation/screens/reschedule_appointment_screen.dart';
-import '../../../../features/shift/presentation/providers/current_shift_provider.dart';
-import '../../../../features/visit/presentation/providers/visits_provider.dart';
 import '../../../../shared/models/appointment_model.dart';
 import '../../../client/presentation/screens/client_history_screen.dart';
 
@@ -169,8 +167,6 @@ class _TodayBody extends StatelessWidget {
 
     final scheduled =
         appointments.where((a) => a.status == AppointmentStatus.scheduled).length;
-    final arrived =
-        appointments.where((a) => a.status == AppointmentStatus.arrived).length;
     final noShow =
         appointments.where((a) => a.status == AppointmentStatus.noShow).length;
     final cancelled =
@@ -180,7 +176,6 @@ class _TodayBody extends StatelessWidget {
       children: [
         _ScheduleSummary(
           scheduled: scheduled,
-          arrived: arrived,
           noShow: noShow,
           cancelled: cancelled,
         ),
@@ -235,13 +230,11 @@ class _SimpleList extends StatelessWidget {
 
 class _ScheduleSummary extends StatelessWidget {
   final int scheduled;
-  final int arrived;
   final int noShow;
   final int cancelled;
 
   const _ScheduleSummary({
     required this.scheduled,
-    required this.arrived,
     required this.noShow,
     required this.cancelled,
   });
@@ -255,7 +248,6 @@ class _ScheduleSummary extends StatelessWidget {
         child: Row(
           children: [
             _SummaryCell(count: scheduled, label: 'Scheduled'),
-            _SummaryCell(count: arrived, label: 'Arrived'),
             _SummaryCell(count: noShow, label: 'No Show'),
             _SummaryCell(count: cancelled, label: 'Cancelled'),
           ],
@@ -334,36 +326,6 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
-  Future<void> _markArrived() async {
-    final shift = ref.read(currentShiftProvider).value;
-    if (shift == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active shift')),
-      );
-      return;
-    }
-
-    setState(() => _loading = true);
-
-    final appt = widget.appointment;
-
-    final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
-          salonId: appt.salonId,
-          barberUid: appt.barberUid,
-          clientId: appt.clientId,
-          clientName: appt.clientName,
-          phone: appt.clientPhone,
-          shiftId: shift.id,
-        );
-
-    await ref.read(appointmentRepositoryProvider).markArrived(
-          appointmentId: appt.id,
-          visitId: visit.id,
-        );
-
-    if (mounted) setState(() => _loading = false);
-  }
-
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
     await ref
@@ -433,45 +395,22 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : _isToday
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          FilledButton(
-                            onPressed: _markArrived,
-                            child: const Text('Arrived'),
-                          ),
-                          PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'noShow') _markNoShow();
-                              if (value == 'cancel') _cancelAppointment();
-                              if (value == 'reschedule') _reschedule();
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                  value: 'noShow', child: Text('No Show')),
-                              PopupMenuItem(
-                                  value: 'cancel', child: Text('Cancel')),
-                              PopupMenuItem(
-                                  value: 'reschedule',
-                                  child: Text('Reschedule')),
-                            ],
-                          ),
-                        ],
-                      )
-                    : PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'cancel') _cancelAppointment();
-                          if (value == 'reschedule') _reschedule();
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                              value: 'cancel', child: Text('Cancel')),
-                          PopupMenuItem(
-                              value: 'reschedule',
-                              child: Text('Reschedule')),
-                        ],
-                      )
+                : PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'noShow') _markNoShow();
+                      if (value == 'cancel') _cancelAppointment();
+                      if (value == 'reschedule') _reschedule();
+                    },
+                    itemBuilder: (_) => [
+                      if (_isToday)
+                        const PopupMenuItem(
+                            value: 'noShow', child: Text('No Show')),
+                      const PopupMenuItem(
+                          value: 'cancel', child: Text('Cancel')),
+                      const PopupMenuItem(
+                          value: 'reschedule', child: Text('Reschedule')),
+                    ],
+                  )
             : Text(
                 _formatStatus(appt.status),
                 style: theme.textTheme.bodySmall,
