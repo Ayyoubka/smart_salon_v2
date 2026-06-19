@@ -98,8 +98,13 @@ class _HomeTab extends ConsumerWidget {
     final todayAppts = todayAsync.asData?.value ?? [];
     final upcomingAppts = upcomingAsync.asData?.value ?? [];
 
-    final waitingVisits =
-        visits.where((v) => v.status == VisitStatus.waiting).toList();
+    // Today's barber queue: scheduled + arrived, ordered by appointment time
+    final waitingQueue = todayAppts
+        .where((a) =>
+            a.status == AppointmentStatus.scheduled ||
+            a.status == AppointmentStatus.arrived)
+        .toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
     final inServiceList =
         visits.where((v) => v.status == VisitStatus.inService).toList();
@@ -132,7 +137,7 @@ class _HomeTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _KpiGrid(
-            waiting: waitingVisits.length,
+            waiting: waitingQueue.length,
             completed: completedCount,
             monthlyRevenue: monthlyRevenue,
             scheduled: scheduledCount,
@@ -145,7 +150,7 @@ class _HomeTab extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _WaitingSection(
-            waitingVisits: waitingVisits,
+            appointments: waitingQueue,
             allVisits: visits,
             isShiftActive: isShiftActive,
           ),
@@ -312,12 +317,12 @@ class _CurrentClientSection extends ConsumerWidget {
 // ── Waiting Section ───────────────────────────────────────────────────────────
 
 class _WaitingSection extends ConsumerWidget {
-  final List<VisitModel> waitingVisits;
+  final List<AppointmentModel> appointments;
   final List<VisitModel> allVisits;
   final bool isShiftActive;
 
   const _WaitingSection({
-    required this.waitingVisits,
+    required this.appointments,
     required this.allVisits,
     required this.isShiftActive,
   });
@@ -332,10 +337,10 @@ class _WaitingSection extends ConsumerWidget {
         Row(
           children: [
             Text('Waiting', style: theme.textTheme.titleMedium),
-            if (waitingVisits.isNotEmpty) ...[
+            if (appointments.isNotEmpty) ...[
               const SizedBox(width: 8),
               Chip(
-                label: Text('${waitingVisits.length}'),
+                label: Text('${appointments.length}'),
                 padding: EdgeInsets.zero,
                 labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                 visualDensity: VisualDensity.compact,
@@ -344,100 +349,172 @@ class _WaitingSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
-        if (waitingVisits.isEmpty)
+        if (appointments.isEmpty)
           Center(
             child: Text(
-              'No clients waiting',
+              'No clients in queue',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           )
         else
-          ...waitingVisits.map(
-            (visit) => Padding(
+          ...appointments.map((appt) {
+            final isArrived = appt.status == AppointmentStatus.arrived;
+            return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Card(
                 child: ListTile(
-                  leading: Text(
-                    _fmt(visit.startedAt),
-                    style: theme.textTheme.bodyMedium,
+                  leading: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _fmt(appt.scheduledAt),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      if (isArrived)
+                        Icon(
+                          Icons.calendar_month_outlined,
+                          size: 12,
+                          color: theme.colorScheme.primary,
+                        ),
+                    ],
                   ),
-                  title: Text(visit.clientName),
-                  subtitle:
-                      visit.phone.isNotEmpty ? Text(visit.phone) : null,
+                  title: Text(appt.clientName),
+                  subtitle: appt.clientPhone.isNotEmpty
+                      ? Text(appt.clientPhone)
+                      : null,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.check),
-                        tooltip: 'Start service',
+                        tooltip: isArrived ? 'Start Service' : 'Check In',
                         onPressed: isShiftActive
-                            ? () async {
-                                final inServiceList = allVisits
-                                    .where((v) =>
-                                        v.status == VisitStatus.inService)
-                                    .toList();
-                                if (inServiceList.isNotEmpty) {
-                                  final current = inServiceList.first;
-                                  final amount = await PaymentDialog.show(
-                                    context,
-                                    current.clientName,
-                                  );
-                                  if (amount == null) return;
-                                  if (!context.mounted) return;
-                                  await ref
-                                      .read(visitRepositoryProvider)
-                                      .completeVisit(current.id, amount);
-                                }
-                                await ref
-                                    .read(visitRepositoryProvider)
-                                    .startVisit(visit.id);
-                              }
+                            ? () => isArrived
+                                ? _startService(context, ref, appt)
+                                : _checkIn(context, ref, appt)
                             : null,
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
-                        tooltip: 'Remove',
-                        onPressed: isShiftActive
-                            ? () async {
-                                final confirmed = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Remove Client'),
-                                    content: Text(
-                                      'Remove ${visit.clientName} from the queue?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.of(ctx).pop(true),
-                                        child: const Text('Remove'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirmed != true) return;
-                                if (!context.mounted) return;
-                                await ref
-                                    .read(visitRepositoryProvider)
-                                    .removeWaitingVisit(visit.id);
-                              }
-                            : null,
+                        tooltip: isArrived ? 'Cancel' : 'No Show',
+                        onPressed: () => _dismiss(context, ref, appt),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          }),
       ],
     );
+  }
+
+  Future<void> _checkIn(
+    BuildContext context,
+    WidgetRef ref,
+    AppointmentModel appt,
+  ) async {
+    final shift = ref.read(currentShiftProvider).value;
+    if (shift == null) return;
+    final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
+          salonId: appt.salonId,
+          barberUid: appt.barberUid,
+          clientId: appt.clientId,
+          clientName: appt.clientName,
+          phone: appt.clientPhone,
+          shiftId: shift.id,
+        );
+    await ref.read(appointmentRepositoryProvider).markArrived(
+          appointmentId: appt.id,
+          visitId: visit.id,
+        );
+  }
+
+  Future<void> _startService(
+    BuildContext context,
+    WidgetRef ref,
+    AppointmentModel appt,
+  ) async {
+    // Finish in-service client first if needed
+    final inServiceList =
+        allVisits.where((v) => v.status == VisitStatus.inService).toList();
+    if (inServiceList.isNotEmpty) {
+      final current = inServiceList.first;
+      final amount = await PaymentDialog.show(context, current.clientName);
+      if (amount == null) return;
+      if (!context.mounted) return;
+      await ref.read(visitRepositoryProvider).completeVisit(current.id, amount);
+    }
+
+    if (!context.mounted) return;
+    final shift = ref.read(currentShiftProvider).value;
+    if (shift == null) return;
+
+    // Reuse existing waiting visit from current shift if available;
+    // otherwise create a new one to avoid duplicates
+    final existingWaiting = allVisits
+        .where(
+            (v) => v.id == appt.visitId && v.status == VisitStatus.waiting)
+        .toList();
+
+    final String visitId;
+    if (existingWaiting.isNotEmpty) {
+      visitId = existingWaiting.first.id;
+    } else {
+      final visit = await ref.read(visitRepositoryProvider).createWaitingVisit(
+            salonId: appt.salonId,
+            barberUid: appt.barberUid,
+            clientId: appt.clientId,
+            clientName: appt.clientName,
+            phone: appt.clientPhone,
+            shiftId: shift.id,
+          );
+      await ref.read(appointmentRepositoryProvider).markArrived(
+            appointmentId: appt.id,
+            visitId: visit.id,
+          );
+      visitId = visit.id;
+    }
+
+    await ref.read(visitRepositoryProvider).startVisit(visitId);
+  }
+
+  Future<void> _dismiss(
+    BuildContext context,
+    WidgetRef ref,
+    AppointmentModel appt,
+  ) async {
+    final isArrived = appt.status == AppointmentStatus.arrived;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isArrived ? 'Remove from Queue' : 'No Show'),
+        content: Text(
+          isArrived
+              ? 'Remove ${appt.clientName} from the queue?'
+              : 'Mark ${appt.clientName} as No Show?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(isArrived ? 'Remove' : 'No Show'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+    if (isArrived) {
+      await ref.read(appointmentRepositoryProvider).cancelAppointment(appt.id);
+    } else {
+      await ref.read(appointmentRepositoryProvider).markNoShow(appt.id);
+    }
   }
 }
 

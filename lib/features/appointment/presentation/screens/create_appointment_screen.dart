@@ -32,10 +32,17 @@ class _CreateAppointmentScreenState
   final _nameController = TextEditingController();
   final _notesController = TextEditingController();
 
-  DateTime? _selectedDate;
+  late DateTime _selectedDate;
   DateTime? _selectedSlot;
   ClientModel? _foundClient;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedDate = DateTime(now.year, now.month, now.day);
+  }
 
   @override
   void dispose() {
@@ -139,7 +146,7 @@ class _CreateAppointmentScreenState
 
       ref.invalidate(availableSlotsProvider((
         barberUid: effectiveBarberUid,
-        date: _selectedDate!,
+        date: _selectedDate,
       )));
 
       if (mounted) Navigator.of(context).pop();
@@ -199,22 +206,18 @@ class _CreateAppointmentScreenState
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: _pickDate,
-                child: Text(
-                  _selectedDate == null
-                      ? 'Select date'
-                      : _formatDate(_selectedDate!),
-                ),
+                child: Text(_formatDate(_selectedDate)),
               ),
 
               // ── Time slot ─────────────────────────────────────────
-              if (_selectedDate != null) ...[
+              ...[
                 const SizedBox(height: 24),
                 Text('Time', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
                 ref
                     .watch(availableSlotsProvider((
                       barberUid: widget.targetBarberUid ?? user.uid,
-                      date: _selectedDate!,
+                      date: _selectedDate,
                     )))
                     .when(
                       loading: () =>
