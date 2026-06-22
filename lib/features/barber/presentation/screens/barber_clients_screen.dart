@@ -32,16 +32,32 @@ class _BarberClientsScreenState extends ConsumerState<BarberClientsScreen> {
         .toList();
   }
 
+  String _memberSince(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return 'Since ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final clientsAsync = ref.watch(clientsProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Clients')),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -74,18 +90,23 @@ class _BarberClientsScreenState extends ConsumerState<BarberClientsScreen> {
                   return Center(
                     child: Text(
                       _query.isEmpty ? 'No clients found.' : 'No results.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   );
                 }
 
                 return ListView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final client = filtered[index];
-                    return ListTile(
-                      title: Text(client.fullName),
-                      subtitle: Text(client.phone),
-                      trailing: const Icon(Icons.chevron_right),
+                    return _ClientCard(
+                      client: client,
+                      initials: _initials(client.fullName),
+                      memberSince: _memberSince(client.createdAt),
                       onTap: () {
                         final user = ref.read(currentUserProvider).value;
                         if (user == null) return;
@@ -107,6 +128,84 @@ class _BarberClientsScreenState extends ConsumerState<BarberClientsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ClientCard extends StatelessWidget {
+  final ClientModel client;
+  final String initials;
+  final String memberSince;
+  final VoidCallback onTap;
+
+  const _ClientCard({
+    required this.client,
+    required this.initials,
+    required this.memberSince,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: colorScheme.primaryContainer,
+                child: Text(
+                  initials,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      client.fullName,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      client.phone,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      memberSince,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

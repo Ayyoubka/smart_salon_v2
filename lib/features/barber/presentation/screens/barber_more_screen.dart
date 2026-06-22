@@ -1,21 +1,8 @@
 import 'package:flutter/material.dart';
-import 'barber_clients_screen.dart';
 import 'barber_deposits_screen.dart';
-import 'barber_reports_screen.dart';
 
 class BarberMoreScreen extends StatelessWidget {
   const BarberMoreScreen({super.key});
-
-  void _openReports(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Reports')),
-          body: const BarberReportsScreen(),
-        ),
-      ),
-    );
-  }
 
   void _openDeposits(BuildContext context) {
     Navigator.of(context).push(
@@ -28,10 +15,13 @@ class BarberMoreScreen extends StatelessWidget {
     );
   }
 
-  void _openClients(BuildContext context) {
+  void _openPlaceholder(BuildContext context, String title) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const BarberClientsScreen(),
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: const Center(child: Text('Coming soon')),
+        ),
       ),
     );
   }
@@ -41,24 +31,31 @@ class BarberMoreScreen extends StatelessWidget {
     return ListView(
       children: [
         ListTile(
-          leading: const Icon(Icons.people_outline),
-          title: const Text('Clients'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _openClients(context),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.bar_chart_outlined),
-          title: const Text('Reports'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _openReports(context),
-        ),
-        const Divider(height: 1),
-        ListTile(
           leading: const Icon(Icons.account_balance_wallet_outlined),
           title: const Text('Deposits'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _openDeposits(context),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.photo_library_outlined),
+          title: const Text('Gallery'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openPlaceholder(context, 'Gallery'),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.person_outline),
+          title: const Text('Profile'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openPlaceholder(context, 'Profile'),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.settings_outlined),
+          title: const Text('Settings'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openPlaceholder(context, 'Settings'),
         ),
       ],
     );
