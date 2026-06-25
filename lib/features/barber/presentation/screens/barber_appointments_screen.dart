@@ -328,9 +328,18 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
 
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
+    final appt = widget.appointment;
     await ref
         .read(appointmentRepositoryProvider)
-        .markNoShow(widget.appointment.id);
+        .markNoShow(appt.id);
+    ref.invalidate(availableSlotsProvider((
+      barberUid: appt.barberUid,
+      date: DateTime(
+        appt.scheduledAt.year,
+        appt.scheduledAt.month,
+        appt.scheduledAt.day,
+      ),
+    )));
     if (mounted) setState(() => _loading = false);
   }
 
@@ -352,7 +361,11 @@ class _AppointmentTileState extends ConsumerState<_AppointmentTile> {
         .cancelAppointment(appt.id);
     ref.invalidate(availableSlotsProvider((
       barberUid: appt.barberUid,
-      date: appt.scheduledAt,
+      date: DateTime(
+        appt.scheduledAt.year,
+        appt.scheduledAt.month,
+        appt.scheduledAt.day,
+      ),
     )));
     if (mounted) setState(() => _loading = false);
   }

@@ -639,9 +639,18 @@ class _AdminAppointmentTileState
   Future<void> _markNoShow() async {
     setState(() => _loading = true);
     try {
+      final appt = widget.appointment;
       await ref
           .read(appointmentRepositoryProvider)
-          .markNoShow(widget.appointment.id);
+          .markNoShow(appt.id);
+      ref.invalidate(availableSlotsProvider((
+        barberUid: appt.barberUid,
+        date: DateTime(
+          appt.scheduledAt.year,
+          appt.scheduledAt.month,
+          appt.scheduledAt.day,
+        ),
+      )));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

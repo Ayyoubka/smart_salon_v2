@@ -48,6 +48,22 @@ class BarberHomeScreen extends ConsumerWidget {
 String _fmt(DateTime dt) =>
     '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
+String _homeGreeting() {
+  final h = DateTime.now().hour;
+  if (h < 12) return 'Good morning,';
+  if (h < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+
+String _homeFmtDate(DateTime dt) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]}';
+}
+
 void _showQuickAddDialog(BuildContext context, WidgetRef ref) {
   final shift = ref.read(currentShiftProvider).value;
   if (shift == null) {
@@ -151,8 +167,11 @@ class _HomeTab extends ConsumerWidget {
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
     final monthEnd = DateTime(now.year, now.month + 1, 1);
+    final daysInMonth = monthEnd.difference(monthStart).inDays;
 
     final user = ref.watch(currentUserProvider).value;
+    final isShiftActive =
+        ref.watch(barberShiftProvider) == ShiftStatus.active;
     final todayAsync = ref.watch(todayBarberAppointmentsProvider);
 
     final monthAsync = user == null
@@ -163,13 +182,6 @@ class _HomeTab extends ConsumerWidget {
             end: monthEnd,
           )));
 
-    final waitingToday = todayAsync.whenOrNull(
-          data: (list) => list
-              .where((a) => a.status == AppointmentStatus.scheduled)
-              .length,
-        ) ??
-        0;
-
     final isMonthLoading = monthAsync is AsyncLoading;
     final completedThisMonth =
         monthAsync.whenOrNull(data: (v) => v.length) ?? 0;
@@ -179,85 +191,342 @@ class _HomeTab extends ConsumerWidget {
         ) ??
         0.0;
 
+    final todayAppts =
+        (todayAsync.asData?.value ?? <AppointmentModel>[]).toList()
+          ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    final shownAppts = todayAppts.take(3).toList();
+    final remaining = todayAppts.length - shownAppts.length;
+
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final monthProgress =
+        daysInMonth > 0 ? (now.day / daysInMonth).clamp(0.0, 1.0) : 0.0;
+
     return ListView(
-      padding: const EdgeInsets.all(16),
+      // Horizontal padding applied once here — children need no wrappers.
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       children: [
-        _StatCard(
-          label: 'Completed This Month',
-          value: isMonthLoading ? '—' : '$completedThisMonth',
-          icon: Icons.check_circle_outline,
-          onTap: () => ref.read(barberNavigationProvider.notifier).setTab(3),
+        // ── 1. Compact Greeting ───────────────────────────────────────────
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _homeGreeting(),
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    user?.fullName ?? 'Barber',
+                    style: tt.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              _homeFmtDate(now),
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        _StatCard(
-          label: 'Revenue This Month',
-          value: isMonthLoading
-              ? '—'
-              : '₪${revenueThisMonth.toStringAsFixed(0)}',
-          icon: Icons.attach_money,
-          onTap: () => ref.read(barberNavigationProvider.notifier).setTab(3),
+        const SizedBox(height: 14),
+
+        // ── 2. Monthly Summary — hero card ────────────────────────────────
+        Card(
+          margin: EdgeInsets.zero,
+          color: cs.primaryContainer,
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () =>
+                ref.read(barberNavigationProvider.notifier).setTab(3),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'THIS MONTH',
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onPrimaryContainer.withValues(alpha: 0.65),
+                      letterSpacing: 1.1,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isMonthLoading
+                                  ? '—'
+                                  : '₪${revenueThisMonth.toStringAsFixed(0)}',
+                              style: tt.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: cs.onPrimaryContainer,
+                                height: 1.1,
+                              ),
+                            ),
+                            Text(
+                              'revenue',
+                              style: tt.bodySmall?.copyWith(
+                                color: cs.onPrimaryContainer
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            isMonthLoading ? '—' : '$completedThisMonth',
+                            style: tt.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: cs.onPrimaryContainer,
+                            ),
+                          ),
+                          Text(
+                            'clients',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onPrimaryContainer
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right,
+                        color: cs.onPrimaryContainer.withValues(alpha: 0.5),
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: monthProgress,
+                      minHeight: 5,
+                      backgroundColor:
+                          cs.onPrimaryContainer.withValues(alpha: 0.15),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        cs.onPrimaryContainer.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Day ${now.day} of $daysInMonth',
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onPrimaryContainer.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
-        _StatCard(
-          label: 'Waiting Today',
-          value: '$waitingToday',
-          icon: Icons.hourglass_bottom,
-          onTap: () => ref.read(barberNavigationProvider.notifier).setTab(1),
+        const SizedBox(height: 10),
+
+        // ── 3. Quick Actions — rounded filled buttons ──────────────────────
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                icon: const Icon(Icons.person_add_outlined, size: 16),
+                label: const Text('Quick Client'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onPressed: isShiftActive
+                    ? () => _showQuickAddDialog(context, ref)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                label: const Text('New Appt'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CreateAppointmentScreen(),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+
+        // ── 4. Today's Appointments ───────────────────────────────────────
+        Row(
+          children: [
+            Text(
+              'TODAY',
+              style: tt.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                letterSpacing: 1.1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (todayAppts.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${todayAppts.length}',
+                  style: tt.labelSmall?.copyWith(
+                    color: cs.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+            if (remaining > 0) ...[
+              const Spacer(),
+              Text(
+                '+$remaining more',
+                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (todayAppts.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(
+              'No appointments today',
+              style: tt.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          )
+        else
+          GestureDetector(
+            onTap: () =>
+                ref.read(barberNavigationProvider.notifier).setTab(1),
+            child: Column(
+              children: shownAppts
+                  .map((a) => _HomeApptRow(appointment: a))
+                  .toList(),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback onTap;
+// ── Home appointment row ──────────────────────────────────────────────────────
 
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onTap,
-  });
+class _HomeApptRow extends StatelessWidget {
+  final AppointmentModel appointment;
+
+  const _HomeApptRow({required this.appointment});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Icon(icon, size: 40, color: cs.primary),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value,
-                      style: tt.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      style: tt.bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+    final a = appointment;
+
+    final dotColor = switch (a.status) {
+      AppointmentStatus.arrived => Colors.green,
+      AppointmentStatus.noShow => cs.error,
+      AppointmentStatus.cancelled => cs.outlineVariant,
+      _ => cs.outlineVariant,
+    };
+
+    final isDisabled = a.status == AppointmentStatus.noShow ||
+        a.status == AppointmentStatus.cancelled;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      child: Row(
+        children: [
+          // Time chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: isDisabled
+                  ? cs.surfaceContainerHighest
+                  : cs.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              _fmt(a.scheduledAt),
+              style: tt.labelMedium?.copyWith(
+                color: isDisabled ? cs.onSurfaceVariant : cs.primary,
+                fontWeight: FontWeight.bold,
               ),
-              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              a.clientName,
+              style: tt.bodyMedium?.copyWith(
+                color: isDisabled ? cs.onSurfaceVariant : null,
+                decoration: isDisabled ? TextDecoration.lineThrough : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
       ),
     );
   }

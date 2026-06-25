@@ -49,9 +49,11 @@ final availableSlotsProvider =
           date: date,
         );
 
-    // Only non-cancelled appointments block slots.
+    // Only active appointments block slots; cancelled and noShow release the slot.
     final blocking = appointments
-        .where((a) => a.status != AppointmentStatus.cancelled)
+        .where((a) =>
+            a.status == AppointmentStatus.scheduled ||
+            a.status == AppointmentStatus.arrived)
         .toList();
 
     // Exclude any slot that overlaps with a blocking appointment.

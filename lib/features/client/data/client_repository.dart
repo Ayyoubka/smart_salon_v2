@@ -89,4 +89,20 @@ class ClientRepository {
         .doc(clientId)
         .update({'fullName': fullName, 'phone': phone});
   }
+
+  Future<ClientModel?> getClientById(String clientId) async {
+    final doc = await _db
+        .collection(FirestoreConstants.clients)
+        .doc(clientId)
+        .get();
+    if (!doc.exists) return null;
+    return ClientModel.fromMap(doc.id, doc.data()!);
+  }
+
+  Future<void> updateNotes(String clientId, String notes) async {
+    await _db
+        .collection(FirestoreConstants.clients)
+        .doc(clientId)
+        .update({'notes': notes.isEmpty ? null : notes});
+  }
 }

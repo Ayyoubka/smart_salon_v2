@@ -7,6 +7,7 @@ class ClientModel {
   final String phone;
   final DateTime createdAt;
   final bool isActive;
+  final String? notes;
 
   const ClientModel({
     required this.id,
@@ -15,6 +16,7 @@ class ClientModel {
     required this.phone,
     required this.createdAt,
     required this.isActive,
+    this.notes,
   });
 
   factory ClientModel.fromMap(String id, Map<String, dynamic> map) =>
@@ -25,6 +27,7 @@ class ClientModel {
         phone: map['phone'] as String,
         createdAt: (map['createdAt'] as Timestamp).toDate(),
         isActive: map['isActive'] as bool,
+        notes: map['notes'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -33,5 +36,6 @@ class ClientModel {
         'phone': phone,
         'createdAt': Timestamp.fromDate(createdAt),
         'isActive': isActive,
+        'notes': notes,
       };
 }

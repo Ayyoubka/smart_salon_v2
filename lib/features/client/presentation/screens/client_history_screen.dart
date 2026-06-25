@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/models/appointment_model.dart';
 import '../../../../shared/models/visit_model.dart';
 import '../providers/client_history_provider.dart';
+import '../providers/clients_provider.dart';
 
 class ClientHistoryScreen extends ConsumerWidget {
   final String clientId;
@@ -18,17 +19,62 @@ class ClientHistoryScreen extends ConsumerWidget {
     required this.salonId,
   });
 
+  Future<void> _editNotes(
+    BuildContext context,
+    WidgetRef ref,
+    ClientHistoryArg arg,
+    String? currentNotes,
+  ) async {
+    final controller = TextEditingController(text: currentNotes ?? '');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Notes'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          maxLength: 500,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Add a note about this client...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final text = controller.text.trim();
+              await ref
+                  .read(clientRepositoryProvider)
+                  .updateNotes(clientId, text);
+              ref.invalidate(clientByIdProvider(arg));
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final arg = (salonId: salonId, clientId: clientId);
     final visitsAsync = ref.watch(clientVisitsProvider(arg));
     final appointmentsAsync = ref.watch(clientAppointmentsProvider(arg));
+    final clientAsync = ref.watch(clientByIdProvider(arg));
     final theme = Theme.of(context);
 
-    final visitsLoading = visitsAsync is AsyncLoading;
-    final appointmentsLoading = appointmentsAsync is AsyncLoading;
+    final isLoading = visitsAsync is AsyncLoading ||
+        appointmentsAsync is AsyncLoading ||
+        clientAsync is AsyncLoading;
 
-    if (visitsLoading || appointmentsLoading) {
+    if (isLoading) {
       return Scaffold(
         appBar: AppBar(title: Text(clientName)),
         body: const Center(child: CircularProgressIndicator()),
@@ -50,6 +96,9 @@ class ClientHistoryScreen extends ConsumerWidget {
 
     final visits = visitsAsync.asData?.value ?? [];
     final appointments = appointmentsAsync.asData?.value ?? [];
+    final client = clientAsync.asData?.value;
+    final notes = client?.notes;
+    final hasNotes = notes != null && notes.isNotEmpty;
 
     // ── Visit stats ────────────────────────────────────────────────────────────
     final completed = visits
@@ -69,7 +118,16 @@ class ClientHistoryScreen extends ConsumerWidget {
         appointments.where((a) => a.status == AppointmentStatus.cancelled).length;
 
     return Scaffold(
-      appBar: AppBar(title: Text(clientName)),
+      appBar: AppBar(
+        title: Text(clientName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_note),
+            tooltip: 'Edit notes',
+            onPressed: () => _editNotes(context, ref, arg, notes),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -79,6 +137,32 @@ class ClientHistoryScreen extends ConsumerWidget {
             Text(clientName, style: theme.textTheme.titleLarge),
             const SizedBox(height: 2),
             Text(phone, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 12),
+
+            // ── Notes row ────────────────────────────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.notes,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasNotes ? notes : 'No notes',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: hasNotes
+                          ? null
+                          : theme.colorScheme.onSurfaceVariant,
+                      fontStyle:
+                          hasNotes ? null : FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
 
             // ── Summary card ─────────────────────────────────────────────────
