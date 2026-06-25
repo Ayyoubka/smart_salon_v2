@@ -19,6 +19,7 @@ import '../../../../shared/models/visit_model.dart';
 import 'barber_clients_screen.dart';
 import 'barber_more_screen.dart';
 import 'barber_reports_screen.dart';
+import '../../../../features/client/presentation/screens/client_history_screen.dart';
 
 class BarberHomeScreen extends ConsumerWidget {
   const BarberHomeScreen({super.key});
@@ -547,7 +548,14 @@ class _WorkTab extends ConsumerWidget {
     final visits = visitsAsync.asData?.value ?? [];
     final todayAppts = todayAsync.asData?.value ?? [];
 
-    final waitingQueue = todayAppts
+    // WAITING = arrived clients physically present, ready to be served
+    final waitingSection = todayAppts
+        .where((a) => a.status == AppointmentStatus.arrived)
+        .toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+
+    // TODAY LATER = scheduled appointments (client not yet arrived)
+    final todayLaterSection = todayAppts
         .where((a) => a.status == AppointmentStatus.scheduled)
         .toList()
       ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
@@ -565,7 +573,6 @@ class _WorkTab extends ConsumerWidget {
       if (idx >= 0) visitNumber = idx + 1;
     }
 
-    // Future days only — exclude today
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
     final upcomingAppts = (upcomingAsync.asData?.value ?? [])
@@ -575,51 +582,22 @@ class _WorkTab extends ConsumerWidget {
         .toList()
       ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
+    // Group next-days appointments by date key "YYYY-MM-DD"
+    final Map<String, List<AppointmentModel>> groupedByDate = {};
+    for (final a in upcomingAppts) {
+      final key = '${a.scheduledAt.year}-'
+          '${a.scheduledAt.month.toString().padLeft(2, '0')}-'
+          '${a.scheduledAt.day.toString().padLeft(2, '0')}';
+      groupedByDate.putIfAbsent(key, () => []).add(a);
+    }
+    final sortedDateKeys = groupedByDate.keys.toList()..sort();
+
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
     return CustomScrollView(
       slivers: [
-        // ── Quick Actions ─────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.person_add, size: 18),
-                    label: const Text('Quick Client'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(40),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    onPressed: isShiftActive
-                        ? () => _showQuickAddDialog(context, ref)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                    label: const Text('New Appointment'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(40),
-                    ),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const CreateAppointmentScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // ── 1. Current Client Hero ────────────────────────────────────────
+        // ── 1. NOW SERVING ────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
@@ -631,59 +609,86 @@ class _WorkTab extends ConsumerWidget {
           ),
         ),
 
-        // ── 2. Waiting Queue ──────────────────────────────────────────────
+        // ── 2. WAITING ────────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: _SectionHeader(
-            label: 'Waiting Today',
-            count: waitingQueue.isNotEmpty ? waitingQueue.length : null,
+            label: 'WAITING',
+            count: waitingSection.isNotEmpty ? waitingSection.length : null,
             cs: cs,
             tt: tt,
           ),
         ),
-        if (waitingQueue.isEmpty)
+        if (waitingSection.isEmpty)
           SliverToBoxAdapter(
             child: _EmptyRow(
               icon: Icons.check_circle_outline,
-              message: 'Queue is clear',
+              message: 'No clients waiting',
             ),
           )
         else
           SliverList.builder(
-            itemCount: waitingQueue.length,
+            itemCount: waitingSection.length,
             itemBuilder: (context, index) => _QueueCard(
-              appointment: waitingQueue[index],
+              appointment: waitingSection[index],
               isShiftActive: isShiftActive,
               onStart: () =>
-                  _startService(context, ref, waitingQueue[index], visits),
+                  _startService(context, ref, waitingSection[index], visits),
               onNoShow: () =>
-                  _dismissAppt(context, ref, waitingQueue[index]),
+                  _dismissAppt(context, ref, waitingSection[index]),
             ),
           ),
 
-        // ── 3. Future Appointments ────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            label: 'Upcoming',
-            count: upcomingAppts.isNotEmpty ? upcomingAppts.length : null,
-            cs: cs,
-            tt: tt,
-          ),
-        ),
-        if (upcomingAppts.isEmpty)
+        // ── 3. TODAY LATER ────────────────────────────────────────────────
+        if (todayLaterSection.isNotEmpty) ...[
           SliverToBoxAdapter(
-            child: _EmptyRow(
-              icon: Icons.calendar_today_outlined,
-              message: 'No upcoming appointments',
+            child: _SectionHeader(
+              label: 'TODAY LATER',
+              count: todayLaterSection.length,
+              cs: cs,
+              tt: tt,
             ),
-          )
-        else
-          SliverList.builder(
-            itemCount: upcomingAppts.length,
-            itemBuilder: (context, index) =>
-                _FutureApptTile(appointment: upcomingAppts[index]),
           ),
+          SliverList.builder(
+            itemCount: todayLaterSection.length,
+            itemBuilder: (context, index) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _TodayLaterRow(appointment: todayLaterSection[index]),
+                if (index < todayLaterSection.length - 1)
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    indent: 24,
+                    endIndent: 24,
+                    color: cs.outlineVariant.withValues(alpha: 0.5),
+                  ),
+              ],
+            ),
+          ),
+        ],
 
-        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        // ── 4. NEXT DAYS ──────────────────────────────────────────────────
+        if (upcomingAppts.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: _SectionHeader(
+              label: 'NEXT DAYS',
+              count: null,
+              cs: cs,
+              tt: tt,
+            ),
+          ),
+          for (final dateKey in sortedDateKeys) ...[
+            SliverToBoxAdapter(child: _WorkDateHeader(dateKey: dateKey)),
+            SliverList.builder(
+              itemCount: groupedByDate[dateKey]!.length,
+              itemBuilder: (context, index) => _FutureApptTile(
+                appointment: groupedByDate[dateKey]![index],
+              ),
+            ),
+          ],
+        ],
+
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
@@ -707,15 +712,15 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: Row(
         children: [
           Text(
             label,
-            style: tt.labelLarge?.copyWith(
+            style: tt.titleSmall?.copyWith(
               color: cs.onSurfaceVariant,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.4,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
             ),
           ),
           if (count != null) ...[
@@ -832,7 +837,7 @@ class _CurrentClientHero extends ConsumerWidget {
       color: cs.primaryContainer,
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -841,10 +846,10 @@ class _CurrentClientHero extends ConsumerWidget {
               children: [
                 Icon(Icons.content_cut,
                     size: 12, color: cs.onPrimaryContainer),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   'NOW SERVING',
-                  style: tt.labelSmall?.copyWith(
+                  style: tt.labelMedium?.copyWith(
                     color: cs.onPrimaryContainer,
                     letterSpacing: 1.6,
                     fontWeight: FontWeight.bold,
@@ -870,34 +875,61 @@ class _CurrentClientHero extends ConsumerWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 7),
 
-            // Client name — visually dominant
-            Text(
-              v.clientName,
-              style: tt.headlineLarge?.copyWith(
-                color: cs.onPrimaryContainer,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
+            // Client name + phone — tap opens Client Profile
+            GestureDetector(
+              onTap: () {
+                if (v.clientId.isEmpty) return;
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => ClientHistoryScreen(
+                    clientId: v.clientId,
+                    clientName: v.clientName,
+                    phone: v.phone,
+                    salonId: v.salonId,
+                  ),
+                ));
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    v.clientName,
+                    style: tt.headlineMedium?.copyWith(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (v.phone.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      v.phone,
+                      style: tt.bodySmall?.copyWith(
+                        color: cs.onPrimaryContainer.withValues(alpha: 0.70),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 1),
+                  Text(
+                    'Since ${_fmt(v.startedAt)} · $elapsedLabel',
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onPrimaryContainer.withValues(alpha: 0.60),
+                    ),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Since ${_fmt(v.startedAt)} · $elapsedLabel',
-              style: tt.bodySmall?.copyWith(
-                color: cs.onPrimaryContainer.withValues(alpha: 0.75),
-              ),
-            ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
             // Finish button
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: cs.onPrimaryContainer,
                 foregroundColor: cs.primaryContainer,
-                minimumSize: const Size.fromHeight(48),
+                minimumSize: const Size.fromHeight(43),
                 textStyle: const TextStyle(
                     fontSize: 15, fontWeight: FontWeight.bold),
               ),
@@ -943,165 +975,51 @@ class _QueueCard extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final appt = appointment;
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: cs.outlineVariant),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 5),
+      height: 60,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: SizedBox(
-        height: 64,
-        child: Row(
-          children: [
-            // Tinted time column
-            Container(
-              width: 52,
-              color: cs.primary.withValues(alpha: 0.07),
-              child: Center(
-                child: Text(
-                  _fmt(appt.scheduledAt),
-                  style: tt.titleSmall?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
+      child: Row(
+        children: [
+          // Time chip
+          Container(
+            width: 50,
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                _fmt(appt.scheduledAt),
+                style: tt.labelMedium?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
               ),
             ),
+          ),
 
-            // Name + phone
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      appt.clientName,
-                      style: tt.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (appt.clientPhone.isNotEmpty)
-                      Text(
-                        appt.clientPhone,
-                        style: tt.bodySmall
-                            ?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ✕ No Show  ✓ Start
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: onNoShow,
-                    icon: Icon(Icons.close, size: 20, color: cs.error),
-                    tooltip: 'No Show',
-                    visualDensity: VisualDensity.compact,
-                    style: IconButton.styleFrom(
-                      backgroundColor:
-                          cs.error.withValues(alpha: 0.08),
-                    ),
+          // Name + phone — tap opens Client Profile
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (appt.clientId.isEmpty) return;
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => ClientHistoryScreen(
+                    clientId: appt.clientId,
+                    clientName: appt.clientName,
+                    phone: appt.clientPhone,
+                    salonId: appt.salonId,
                   ),
-                  const SizedBox(width: 6),
-                  FilledButton(
-                    onPressed: isShiftActive ? onStart : null,
-                    style: FilledButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14),
-                      minimumSize: const Size(0, 34),
-                      visualDensity: VisualDensity.compact,
-                      textStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.bold),
-                    ),
-                    child: const Text('Start'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Future Appointment Tile ───────────────────────────────────────────────────
-
-class _FutureApptTile extends StatelessWidget {
-  final AppointmentModel appointment;
-
-  const _FutureApptTile({required this.appointment});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final appt = appointment;
-    final dt = appt.scheduledAt;
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-            color: cs.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            // Date chip
-            Container(
-              width: 40,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              decoration: BoxDecoration(
-                color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(6),
-              ),
+                ));
+              },
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${dt.day}',
-                    style: tt.titleSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.bold,
-                      height: 1,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    months[dt.month - 1],
-                    style: tt.labelSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Name + phone
-            Expanded(
-              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -1120,16 +1038,205 @@ class _FutureApptTile extends StatelessWidget {
                 ],
               ),
             ),
+          ),
 
-            // Time
+          // ✕ Cancel  ✓ Start
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Material(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: onNoShow,
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: cs.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                FilledButton(
+                  onPressed: isShiftActive ? onStart : null,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(60, 34),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  child: const Text('Start'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Future Appointment Tile ───────────────────────────────────────────────────
+
+class _FutureApptTile extends StatelessWidget {
+  final AppointmentModel appointment;
+
+  const _FutureApptTile({required this.appointment});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appt = appointment;
+
+    return GestureDetector(
+      onTap: () {
+        if (appt.clientId.isEmpty) return;
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => ClientHistoryScreen(
+            clientId: appt.clientId,
+            clientName: appt.clientName,
+            phone: appt.clientPhone,
+            salonId: appt.salonId,
+          ),
+        ));
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              child: Text(
+                _fmt(appt.scheduledAt),
+                style: tt.labelLarge?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                appt.clientName,
+                style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 16, color: cs.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Today Later Row ───────────────────────────────────────────────────────────
+
+class _TodayLaterRow extends StatelessWidget {
+  final AppointmentModel appointment;
+  const _TodayLaterRow({required this.appointment});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appt = appointment;
+
+    return InkWell(
+      onTap: () {
+        if (appt.clientId.isEmpty) return;
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => ClientHistoryScreen(
+            clientId: appt.clientId,
+            clientName: appt.clientName,
+            phone: appt.clientPhone,
+            salonId: appt.salonId,
+          ),
+        ));
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        constraints: const BoxConstraints(minHeight: 50),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                appt.clientName,
+                style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.schedule, size: 14, color: cs.primary),
+            const SizedBox(width: 4),
             Text(
-              _fmt(dt),
+              _fmt(appt.scheduledAt),
               style: tt.labelLarge?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Work Date Header ──────────────────────────────────────────────────────────
+
+class _WorkDateHeader extends StatelessWidget {
+  final String dateKey; // "YYYY-MM-DD"
+  const _WorkDateHeader({required this.dateKey});
+
+  String _label() {
+    final parts = dateKey.split('-');
+    final dt = DateTime(
+        int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 3),
+      child: Text(
+        _label(),
+        style: tt.labelMedium?.copyWith(
+          color: cs.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
